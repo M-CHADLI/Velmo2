@@ -1,0 +1,31 @@
+sequenceDiagram
+    actor User
+    participant ShortMem as Fenêtre<br/>court terme
+    participant Judge as Judge<br/>Agent
+    participant RelDB as Base<br/>relationnelle
+    participant VecDB as Base<br/>vectorielle
+    participant LLM as LLM<br/>Principal
+
+    User->>ShortMem: Message N
+    Note over ShortMem: Ajout message N<br/>Check budget?
+
+    alt Tous les 10 messages
+        ShortMem->>Judge: Lit 10 messages + faits existants
+        Judge->>Judge: Extract + synchronise
+        Judge->>VecDB: Embed et stocke vecteurs
+        VecDB->>RelDB: Persist faits+metadata
+    end
+
+    Note over RelDB,VecDB: Avant appel LLM
+    LLM->>VecDB: Requête: "Quels faits pertinents ?"
+    VecDB-->>LLM: Top-N (triés par score)
+
+    LLM->>RelDB: Fetch faits pour contexte
+    RelDB-->>LLM: Faits (status=active)
+
+    LLM->>LLM: Génère réponse<br/>(avec contexte injecté)
+
+    LLM-->>User: Réponse
+    LLM->>ShortMem: Ajout réponse (si espace)
+
+    Note over ShortMem: Budget > 80% ?<br/>Si oui: anciens tours s'effacent

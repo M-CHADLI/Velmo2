@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://velmo.local/schemas/extraction_metadata.json",
+  "title": "Extraction Metadata",
+  "description": "Métadonnées d'un round d'extraction par le judge",
+  "type": "object",
+  "required": [
+    "extraction_id",
+    "round_number",
+    "messages_analyzed",
+    "created_at"
+  ],
+  "properties": {
+    "extraction_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identifiant unique du round d'extraction"
+    },
+    "round_number": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Numéro du round (1, 2, 3...)"
+    },
+    "messages_analyzed": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Nombre de messages traités (généralement 10)"
+    },
+    "judge_model": {
+      "type": "string",
+      "description": "Modèle LLM utilisé pour le judge"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_ms": {
+      "type": "integer",
+      "description": "Durée d'exécution du judge (ms)"
+    },
+    "facts_created": {
+      "type": "integer",
+      "description": "Nombre de nouveaux faits créés"
+    },
+    "facts_updated": {
+      "type": "integer",
+      "description": "Nombre de faits mis à jour"
+    },
+    "facts_confirmed": {
+      "type": "integer",
+      "description": "Nombre de faits confirmés (inchangés)"
+    }
+  }
+}
