@@ -45,12 +45,30 @@ Assurer que **tous les messages (input et output) respectent les règles de séc
 
 ---
 
-## Fichiers de Conception
+## Fichiers de Documentation
 
-- **01_DESIGN.md** — Architecture détaillée, flux décision, règles
-- **02_SCHEMAS.md** — JSON schemas, validation rules
-- **03_DIAGRAMMES.md** — Diagrams (Mermaid)
-- **04_DECISIONS.md** — Decision matrix (outils, tradeoffs)
+| Fichier | Contenu | Audience |
+|---------|---------|----------|
+| **[01_DESIGN.md](./01_DESIGN.md)** | Architecture complète (guards, flux, configuration YAML) | Architects |
+| **[02_SCHEMAS.md](./02_SCHEMAS.md)** | Pydantic models pour tous les schemas + exemples | Developers |
+| **[03_FLOWCHARTS.md](./03_FLOWCHARTS.md)** | 11 diagrammes Mermaid (pipelines, COT, PII, etc.) | Visual learners |
+| **[04_OPTIMIZATIONS.md](./04_OPTIMIZATIONS.md)** | Parallélisation + gains latence (540ms → 260ms) | Developers |
+| **[05_TABLEAU_GARDEFOUS.md](./05_TABLEAU_GARDEFOUS.md)** | Tableau catégorie × emplacement × méthode × action (livrable brief) | Formateur / Architects |
+
+---
+
+## Décisions Validées (2026-07-02)
+
+| Aspect | Décision | Détails |
+|--------|----------|---------|
+| **PII Strategy** | Redacter (complet) | Input + Output + Storage |
+| **Safety Errors** | Chain-of-Thought | Double vérification si confiance < 0.75 |
+| **Rate Limiting** | Sliding window 2-tier | 2 req/sec (soft) + 100 req/h (hard) |
+| **Compliance** | MVP simple | Full legal review des logs ultérieurement |
+| **Integration C1** | Redacted facts only | Judge/LLM jamais PII brutes |
+| **Error Handling** | Fail open | Rejeter si guard échoue (sécurité) |
+| **Latency Budget** | < 500ms acceptable | Optimisé: ~260ms avec parallélisation |
+| **Monitoring** | 4 KPIs | Rejection rates, latency p95, PII accuracy, uptime |
 
 ---
 

@@ -37,14 +37,14 @@ User Input
 | Component | Technology | Endpoint/Config | Purpose |
 |-----------|-----------|-----------------|---------|
 | LLM Principal | Kimi 2.6 (Azure OpenAI) | `https://eagwu-0283-resource.services.ai.azure.com/openai/v1/` | Response generation |
-| Judge Agent | Kimi 2.6 (same) | same endpoint | Fact extraction (every 10 msgs) |
+| Judge Agent | Kimi 2.6 (same) | same endpoint | Fact extraction (every 5 tours = 10 msgs) |
 | Embedding | OpenAI text-embedding-3-large | OpenAI API | Vectorize facts for search |
 
 ### **Tier 2: Memory & Storage**
 
 | Component | Technology | Purpose | Format |
 |-----------|-----------|---------|--------|
-| Short-term Window | LangChain ConversationBufferWindowMemory | 30 turns, 100k tokens | In-memory FIFO |
+| Short-term Window | Sliding Window Memory | 15 tours (30 messages) | In-memory FIFO |
 | Facts (persistent) | PostgreSQL + pgvector | Structured fact storage | JSON + vector column |
 | Vector Search | Pinecone | Semantic retrieval | Cosine similarity |
 | Audit Logs | PostgreSQL audit table | GDPR compliance | Event stream |
@@ -63,8 +63,8 @@ User Input
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| Tracing | LangSmith | Full request tracing |
-| Metrics | LangSmith + custom | Quality metrics, latency, tokens |
+| Tracing | LangFuse | Full request tracing |
+| Metrics | LangFuse + custom | Quality metrics, latency, tokens |
 | Cost tracking | Custom dashboard | Monitor Kimi + OpenAI spend |
 
 ---
@@ -77,7 +77,7 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.vectorstores import Pinecone
 from langchain.agents import Tool, AgentExecutor, initialize_agent
-from langchain.callbacks import LangSmithTracer
+from langfuse.callback import CallbackHandler as LangFuseTracer
 
 # LLM setup (Kimi 2.6)
 llm = AzureChatOpenAI(
@@ -95,8 +95,8 @@ embeddings = OpenAIEmbeddings(
 )
 
 # Memory (short-term)
-memory = ConversationBufferWindowMemory(
-    k=30,  # 30 turns
+memory = SlidingWindowMemory(
+    max_messages=30,  # 15 tours (30 messages)
     return_messages=True
 )
 
@@ -117,7 +117,7 @@ judge_agent = initialize_agent(
     tools,
     llm,
     agent="zero-shot-react-description",
-    callbacks=[LangSmithTracer(project_name="Velmo-2.0")]
+    callbacks=[LangFuseTracer(project_name="Velmo-2.0")]
 )
 
 # Main retrieval chain
@@ -125,7 +125,7 @@ qa_chain = RetrievalQA.from_chain_type(
     llm=llm,
     retriever=vectorstore.as_retriever(),
     memory=memory,
-    callbacks=[LangSmithTracer(project_name="Velmo-2.0")]
+    callbacks=[LangFuseTracer(project_name="Velmo-2.0")]
 )
 ```
 
@@ -141,9 +141,10 @@ qa_chain = RetrievalQA.from_chain_type(
 - Produces: Cleaned input, filtered output, audit logs
 - Consumed by: Everyone (input/output protection)
 
-### **Chantier 3 → CI/CD**
-- Produces: Metrics, alerts, versioning decisions
-- Triggers: Auto-deploy if metrics pass, auto-rollback if degrade
+### **Chantier 3 → CI/CD (GitHub Actions)**
+- Produces: Scores LangFuse, alerts, versioning décisions
+- Pipeline: test → gate (judge_confidence ≥ 0.85) → deploy
+- Triggers: Auto-deploy si gate ✅, auto-rollback si dégradation
 
 ---
 
@@ -155,7 +156,7 @@ Turn N:
 ├─ [Chantier 2] Validate input (Pydantic)
 ├─ [Chantier 2] Safety check (Kimi classifier)
 ├─ [Chantier 1] Add to window
-├─ [Chantier 1] Judge trigger? (N % 10 == 0)
+├─ [Chantier 1] Judge trigger? (N % 10 == 0, soit tous les 5 tours)
 │  ├─ Extract facts (Kimi + tools)
 │  ├─ Embed facts (OpenAI)
 │  └─ Persist (PostgreSQL + Pinecone)
@@ -163,7 +164,7 @@ Turn N:
 ├─ [LLM] Generate response (Kimi 2.6)
 ├─ [Chantier 2] Output safety (Kimi classifier)
 ├─ [Chantier 2] PII redaction (Presidio)
-├─ [Chantier 3] LangSmith trace (all above)
+├─ [Chantier 3] LangFuse trace (all above)
 ├─ [Chantier 3] Metrics collection
 └─ Output: response to user
 ```
@@ -191,10 +192,10 @@ REDIS_URL=redis://localhost:6379
 # PostgreSQL (facts + audit)
 DATABASE_URL=postgresql://user:pass@localhost/velmo
 
-# LangSmith (observability)
-LANGCHAIN_API_KEY=<your-key>
-LANGCHAIN_PROJECT=Velmo-2.0
-LANGCHAIN_TRACING_V2=true
+# LangFuse (observability)
+LANGFUSE_PUBLIC_KEY=<your-public-key>
+LANGFUSE_SECRET_KEY=<your-secret-key>
+LANGFUSE_HOST=https://cloud.langfuse.com
 
 # Presidio (PII detection)
 PRESIDIO_ENDPOINT=http://localhost:8000  # optional, local deployment
@@ -202,16 +203,16 @@ PRESIDIO_ENDPOINT=http://localhost:8000  # optional, local deployment
 
 ---
 
-## Coût Estimé (Kimi + OpenAI)
+## Coût Estimé
 
-Per 30-turn conversation:
+Per 15-tour conversation (configurable):
 - Kimi LLM (9 standard turns): ~$0.00126
 - Kimi Judge (1 trigger): ~$0.001
 - OpenAI Embedding (3 facts): ~$0.000006
 - **Total per session**: ~$0.0024
 - **Per 100 users/day**: ~$0.08
 
-*(Pas de limite budget configurée, mais monitored via LangSmith)*
+*(Memory limited to 15 tours in short-term window, monitored for cost)*
 
 ---
 
@@ -228,4 +229,4 @@ Per 30-turn conversation:
 
 - [Chantier 1: Mémoire](./chantier-1-memoire/README.md)
 - [Chantier 2: Guardrails](./chantier-2-guardrails/README.md)
-- [Chantier 3: Evals & MLOps](./chantier-3-evals/README.md)
+- [Chantier 3: Éval & Observabilité](./chantier-3-observabilite/README.md)

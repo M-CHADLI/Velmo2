@@ -408,5 +408,5 @@ METRICS_TARGETS = {
 ## See Also
 
 - [02_SCHEMAS.md](./02_SCHEMAS.md) — Validation schemas
-- [../FLOWCHARTS.md](../FLOWCHARTS.md) — Input/Output guard flows
+- [03_FLOWCHARTS.md](./03_FLOWCHARTS.md) — Input/Output guard flows
 - [../00_STACK_GLOBALE.md](../00_STACK_GLOBALE.md) — Overall stack

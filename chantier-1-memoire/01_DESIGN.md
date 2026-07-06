@@ -1,557 +1,499 @@
-# Chantier 1: Design Détaillé (Mémoire)
+# Chantier 1: Architecture Mémoire (PostgreSQL JSONB + pgvector)
 
-## Vue d'Ensemble
+## 1. Contraintes & Exigences
 
-Velmo utilise une **architecture mémoire 3 couches** pour maintenir le contexte sur 30+ tours sans perte d'information:
-
-1. **Couche 1: Short-term** (LangChain window, 100k tokens)
-2. **Couche 2: Judge** (Extraction LLM Kimi 2.6, tous 10 msgs)
-3. **Couche 3: Long-term** (PostgreSQL + Pinecone, persistent)
-
----
-
-## 1. Couche 1: Fenêtre Glissante (Short-term)
-
-### 1.1 Composant: ConversationBufferWindowMemory
-
-```python
-from langchain.memory import ConversationBufferWindowMemory
-
-memory = ConversationBufferWindowMemory(
-    k=30,                      # Keep last 30 messages
-    return_messages=True,      # Return as list of Message objects
-    max_token_limit=100000,    # Max tokens allowed
-    human_prefix="User",       # Role names
-    ai_prefix="Assistant"
-)
-```
-
-### 1.2 Comportement
-
-- **Ajout**: Chaque message utilisateur/assistant ajouté automatiquement
-- **Éviction**: FIFO lorsque tokens > 100k
-- **Pas de persistance**: Perte si restart de l'application
-- **Accès rapide**: O(1) pour lecture/écriture
-
-### 1.3 Budget Token
-
-```
-Calcul par message:
-- Role tag: 2 tokens
-- Content: ~15 tokens/phrase moyenne
-- Separator: 1 token
-Total: ~20 tokens par message court, ~200 tokens par long message
-
-30 messages × ~150 tokens/msg = 4,500 tokens (baseline)
-+ Context injection (retrieved facts): 2,000 tokens
-+ LLM response: 2,000 tokens
-= ~8,500 tokens utilisés par turn
-
-Headroom: 100k - 8.5k = 91.5k tokens (8.5x buffer)
-```
-
-### 1.4 Trigger: Extraction Judge
-
-**Condition**: `message_count % 10 == 0`
-
-Après le 10e message, 20e, 30e, etc., l'agent Judge extrait les faits avant que la fenêtre ne les oublie.
+| ID | Exigence (brief) | Description | Implication technique |
+|----|------------------|-------------|----------------------|
+| **R1** | Fil ≥ 30 tours | Tenir une conversation d'au moins 30 tours sans perdre une info donnée au tout début | Short-term sliding window + récupération depuis long-term |
+| **R2** | Persistance multi-session | Se souvenir, d'une session à l'autre, des faits et préférences durables d'un même utilisateur | Long-term storage durable (PostgreSQL) |
+| **R3** | Isolation stricte | La mémoire d'un utilisateur n'est jamais accessible à un autre | Filter `WHERE user_id = ?` partout |
+| **R4** | Tenir la fenêtre de contexte | Au-delà du budget de tokens, résumer / sélectionner sans perdre l'info critique | Résumé glissant + recherche sémantique (pas de troncature aveugle) |
+| **R5** | Droit à l'oubli (RGPD) | Un utilisateur peut demander d'oublier une info, avec suppression effective et vérifiable | Suppression tracée (`status`, `deletion_reason`) + preuve |
+| **R6** | Traçabilité | Pouvoir inspecter ce que l'agent a retenu d'un utilisateur | Endpoint d'inspection + audit log, timestamp everywhere |
 
 ---
 
-## 2. Couche 2: Judge Agent (Fact Extraction)
-
-### 2.1 Composant: Kimi 2.6 (Azure OpenAI)
-
-**Rôle**: Extraire les faits structurés des 10 derniers messages.
-
-```python
-from langchain.chat_models import AzureChatOpenAI
-
-llm = AzureChatOpenAI(
-    deployment_name="kimi-2.6",
-    api_base="https://eagwu-0283-resource.services.ai.azure.com/",
-    api_version="2024-08-01-preview",
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    temperature=0.7,      # Balanced: creative but not random
-    max_tokens=2048       # Room for JSON extraction
-)
-```
-
-### 2.2 Judge Prompt Template
+## 2. Flux de Données (End-to-End)
 
 ```
-Role: Vous êtes un agent d'extraction de faits. Analysez la conversation et extrayez les faits clés.
+┌────────────────────────────────────────────────────────────────────┐
+│                     USER MESSAGE ARRIVES                            │
+│                   "Mon contrat est KX-4471"                         │
+└────────────────┬─────────────────────────────────────────────────┘
+                 │
+                 ↓
+        ┌────────────────────┐
+        │ VALIDATION         │
+        │ (Chantier 2)       │
+        │ - Pydantic schema  │
+        │ - Safety check     │
+        │ - PII detection    │
+        └────────┬───────────┘
+                 │ ✅ Valid
+                 ↓
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  LAYER 1: SHORT-TERM (RAM)   ┃
+    ┃  Sliding Window Memory        ┃
+    ┗━━━━━━━━━┬━━━━━━━━━━━━━━━━━━┛
+              │
+              ├─ Add message to window
+              ├─ Keep last 30 messages (15 tours)
+              │
+              ├─ Retrieve context from DB
+              │  (semantic search on embeddings)
+              │
+              └─→ LLM generates response
+                  "D'accord, contrat KX-4471 noté!"
+                  
+                  ↓
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  EVERY 5 TOURS (10 messages):             ┃
+    ┃  TRIGGER JUDGE EXTRACTION                 ┃
+    ┗━━━━━━━━━┬━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+              │
+              ├─ Last 10 messages → LLM (Judge)
+              │  "Extract facts from conversation"
+              │
+              ├─ Judge outputs JSON:
+              │  {
+              │    "facts": [
+              │      {
+              │        "key": "contract_id",
+              │        "value": "KX-4471",
+              │        "type": "identifier",
+              │        "confidence": 0.95
+              │      }
+              │    ]
+              │  }
+              │
+              ├─ Generate embedding
+              │  text-embedding-3-small → [0.234, 0.891, ...]
+              │
+              └─→ PERSIST TO POSTGRESQL
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  LAYER 3: LONG-TERM (PostgreSQL)          ┃
+    ┃  JSONB + pgvector (All-in-One)            ┃
+    ┗━━━━━━━━━┬━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+              │
+              ├─ INSERT INTO facts
+              │  {
+              │    fact_id: uuid,
+              │    user_id: user_xyz,
+              │    conversation_id: conv_123,
+              │    data: {                      ← JSONB flexible
+              │      key: "contract_id",
+              │      value: "KX-4471",
+              │      type: "identifier",
+              │      confidence: 0.95,
+              │      source: "user_statement"
+              │    },
+              │    embedding: [0.234, 0.891, ...]  ← pgvector
+              │    created_at: NOW(),
+              │    status: 'active'
+              │  }
+              │
+              ├─ Index on embedding (HNSW)
+              │  for fast semantic search
+              │
+              └─ Audit log entry
+                 "fact_extracted", timestamp, user_id
+```
 
-Messages (derniers 10):
-[Messages texte]
+---
 
-Extraction:
-- Extrayez UNIQUEMENT les faits dont vous êtes confiant (confidence >= 0.8)
-- Format: JSON structuré
-- Champs obligatoires: key, value, type, confidence, source
-- Pas de texte additionnel, JSON pur
+## 3. Architecture: PostgreSQL All-in-One
 
-Sortie JSON:
+### Why PostgreSQL JSONB + pgvector?
+
+| Aspekt | Relational DB | NoSQL | **PostgreSQL JSONB+pgvector** |
+|--------|---------------|-------|------|
+| Flexibilité | ❌ Schéma fixe | ✅ JSON libre | ✅ JSONB = flexible |
+| Vecteurs | ❌ Besoin store séparé | ⚠️ Limité | ✅ pgvector natif |
+| ACID | ✅ Fort | ❌ Eventual | ✅ Fort |
+| Transactions | ✅ Atomiques | ❌ Loose | ✅ Atomiques (fact+embedding ensemble) |
+| GDPR Compliance | ✅ Facile | ⚠️ Complexe | ✅ Facile |
+| Audit Trail | ✅ Natif | ⚠️ Manual | ✅ Natif |
+| Coût | $$ | $$ | $ (one store only) |
+| Maintenance | Simple | Simple | **Simpler** |
+
+### Key Features
+
+**JSONB**: Store anything without schema migrations
+```json
 {
-  "facts": [
-    {
-      "key": "contract_id",
-      "value": "KX-4471",
-      "type": "identifier",
-      "confidence": 0.95,
-      "source": "user_statement",
-      "context": "User explicitly said contract number"
-    },
-    ...
-  ]
+  "key": "contract_id",
+  "value": "KX-4471",
+  "type": "identifier",
+  "confidence": 0.95,
+  "source": "user_statement",
+  "custom_field_1": "anything",
+  "custom_field_2": {...}
 }
 ```
 
-### 2.3 Pipeline Judge
-
-```
-1. Trigger Check
-   └─ message_count % 10 == 0?
-
-2. Extract Facts
-   ├─ Input: Last 10 messages
-   ├─ Call Kimi with prompt
-   └─ Output: JSON facts
-
-3. Validate Facts
-   ├─ Parse JSON
-   ├─ Check schema (Pydantic)
-   └─ Filter: confidence >= 0.8
-
-4. Embed Facts
-   ├─ OpenAI text-embedding-3-large
-   ├─ Each fact value → 3072-dim vector
-   └─ Cache embeddings
-
-5. Persist
-   ├─ PostgreSQL: INSERT facts
-   ├─ Pinecone: UPSERT vectors
-   └─ Audit log: Log extraction metadata
-
-6. Success
-   └─ Continue to retrieval (Couche 3)
+**pgvector**: Native semantic search
+```sql
+SELECT * FROM facts
+WHERE user_id = 'user_xyz'
+ORDER BY embedding <-> query_embedding  -- Cosine similarity
+LIMIT 5;
 ```
 
-### 2.4 Coût Estimation
-
-**Par extraction (tous les 10 messages)**:
-
-```
-Judge input:
-  - Prompt template: 200 tokens
-  - Last 10 messages: ~1500 tokens
-  - Total input: ~1700 tokens
-
-Judge output:
-  - JSON facts: ~300 tokens (5-10 facts)
-
-OpenAI Embedding:
-  - 5-10 facts × 300 tokens each = 1500 tokens
-
-Total per extraction: ~3500 tokens
-Cost: 3500 / 1M × $0.0003 = $0.00105
-
-Per 30-turn session:
-  - 3 extractions × $0.00105 = $0.00315
-  - Plus 27 regular turns × 350 tokens × $0.0001 = $0.00095
-  - Total: ~$0.004 per session (3x normal, but with persistent facts)
-```
-
-### 2.5 Error Handling
-
-```python
-def safe_judge_extract(messages: list[dict]) -> dict:
-    """Extract facts with retry and fallback."""
-    
-    for attempt in range(3):
-        try:
-            response = llm.invoke(create_judge_prompt(messages))
-            facts = json.loads(response.content)
-            
-            # Validate schema
-            for fact in facts.get("facts", []):
-                if fact["confidence"] >= 0.8:
-                    yield fact
-            
-            return
-            
-        except json.JSONDecodeError:
-            if attempt < 2:
-                time.sleep(2 ** attempt)  # Exponential backoff
-                continue
-            else:
-                logger.warning("Judge failed 3x, skipping extraction")
-                return
+**Indices**: HNSW for speed
+```sql
+CREATE INDEX ON facts USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
 ```
 
 ---
 
-## 3. Couche 3: Long-term Storage
+## 4. Database Schema
 
-### 3.1 PostgreSQL + pgvector
-
-**Table: facts**
+### Table: facts
 
 ```sql
 CREATE TABLE facts (
-    fact_id UUID PRIMARY KEY,
+    -- Identity
+    fact_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
     conversation_id UUID NOT NULL,
     
-    -- Content
-    key VARCHAR(255) NOT NULL,
-    value TEXT NOT NULL,
-    type VARCHAR(50) NOT NULL,  -- identifier, date, quantity, etc.
+    -- Flexible content (JSONB)
+    data JSONB NOT NULL,
+    -- Contains: key, value, type, confidence, source, context, etc.
+    -- Can evolve without migrations!
     
-    -- Quality
-    confidence FLOAT CHECK (confidence >= 0 AND confidence <= 1),
-    source VARCHAR(100),         -- user_statement, extraction, correction
-    pii_category VARCHAR(100),   -- sensitive, card_number, email, etc.
+    -- Embedding for semantic search (pgvector)
+    embedding vector(384),              -- Dimension depends on model
     
-    -- Tracking
-    extracted_at_message INT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Metadata
+    extracted_at_message INT,           -- Which message triggered extraction
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
     last_accessed_at TIMESTAMP,
+    
+    -- GDPR Compliance
+    status VARCHAR(20) DEFAULT 'active',  -- active, soft_deleted
+    deletion_reason VARCHAR(255),
     
     -- Versioning
     version INT DEFAULT 1,
-    version_history JSONB,       -- [{version, value, timestamp, reason}, ...]
+    version_history JSONB,              -- [{version, value, timestamp, reason}, ...]
     
-    -- GDPR
-    status VARCHAR(50) DEFAULT 'active',  -- active, soft_deleted
-    deletion_reason VARCHAR(255),
-    
-    -- Embedding
-    embedding vector(3072),
-    
+    -- Constraints & Indexes
     FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
-    INDEX idx_user_conversation (user_id, conversation_id),
-    INDEX idx_created_at (created_at),
-    INDEX idx_status (status)
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
+
+-- Indices
+CREATE INDEX idx_facts_user_id ON facts(user_id);
+CREATE INDEX idx_facts_conversation_id ON facts(conversation_id);
+CREATE INDEX idx_facts_created_at ON facts(created_at);
+CREATE INDEX idx_facts_status ON facts(status);
+
+-- Vector index for semantic search (FAST!)
+CREATE INDEX idx_facts_embedding ON facts USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+-- JSONB index for flexible queries
+CREATE INDEX idx_facts_data ON facts USING GIN (data);
 ```
 
-**Table: extraction_metadata**
+### Table: extraction_metadata
 
 ```sql
 CREATE TABLE extraction_metadata (
-    extraction_id UUID PRIMARY KEY,
+    extraction_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
     conversation_id UUID NOT NULL,
-    round_number INT,
     
-    -- Judge call
-    judge_input_tokens INT,
-    judge_output_tokens INT,
-    judge_latency_ms INT,
+    -- Extraction details
+    round_number INT,
+    messages_count INT,
+    
+    -- Judge quality
     judge_confidence FLOAT,
-    judge_hallucination_detected BOOLEAN DEFAULT FALSE,
+    judge_latency_ms INT,
     
     -- Facts produced
     facts_extracted INT,
     facts_valid INT,
-    facts_invalid INT,
     
-    -- Embedding
+    -- Embeddings
     embedding_latency_ms INT,
+    embedding_model VARCHAR(100),
+    embedding_dimensions INT,
     
     -- Persistence
     db_latency_ms INT,
-    pinecone_latency_ms INT,
     
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
     
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
+
+CREATE INDEX idx_extraction_metadata_user_id ON extraction_metadata(user_id);
+CREATE INDEX idx_extraction_metadata_created_at ON extraction_metadata(created_at);
 ```
 
-### 3.2 Pinecone Vector Store
+### Table: audit_log
 
-**Index Configuration**:
-
-```python
-pinecone.create_index(
-    name="velmo-facts",
-    dimension=3072,                    # OpenAI text-embedding-3-large
-    metric="cosine",
-    metadata_config={"indexed": ["user_id", "conversation_id", "type"]}
-)
-
-# Namespace per user (isolation)
-def upsert_facts(user_id: str, facts: list[dict]):
-    vectors = []
-    for fact in facts:
-        vectors.append({
-            "id": fact["fact_id"],
-            "values": fact["embedding"],
-            "metadata": {
-                "user_id": user_id,
-                "conversation_id": fact["conversation_id"],
-                "key": fact["key"],
-                "type": fact["type"],
-                "confidence": fact["confidence"]
-            }
-        })
+```sql
+CREATE TABLE audit_log (
+    log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
     
-    pinecone.Index("velmo-facts").upsert(
-        vectors=vectors,
-        namespace=f"user_{user_id}"
-    )
+    -- Action details
+    action VARCHAR(100),                -- fact_extracted, fact_accessed, fact_deleted
+    fact_id UUID,
+    old_value JSONB,
+    new_value JSONB,
+    
+    -- Context
+    reason VARCHAR(255),
+    ip_address INET,
+    
+    created_at TIMESTAMP DEFAULT NOW(),
+    
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE INDEX idx_audit_log_user_id ON audit_log(user_id);
+CREATE INDEX idx_audit_log_created_at ON audit_log(created_at);
 ```
 
-### 3.3 Retrieval (Before LLM)
+---
+
+## 5. Code Examples
+
+### 5.1 Extraction & Persistence
 
 ```python
-def retrieve_context(user_id: str, query: str, k: int = 5) -> list[dict]:
-    """Retrieve top-k similar facts."""
+from datetime import datetime
+import json
+
+def extract_and_persist_facts(
+    user_id: str,
+    conversation_id: str,
+    messages: list[dict],
+    llm,
+    embedding_model
+):
+    """Extract facts every 5 tours and persist to PostgreSQL."""
+    
+    # Step 1: Judge extraction
+    judge_prompt = f"Extract facts from: {messages}"
+    judge_response = llm.invoke(judge_prompt)
+    facts_json = json.loads(judge_response)
+    
+    # Step 2: Validate
+    valid_facts = [
+        f for f in facts_json.get("facts", [])
+        if f.get("confidence", 0) >= 0.8
+    ]
+    
+    # Step 3: Embed each fact
+    embeddings = []
+    for fact in valid_facts:
+        embedding = embedding_model.embed(fact["value"])
+        embeddings.append(embedding)
+    
+    # Step 4: Persist to PostgreSQL (JSONB + pgvector in one transaction)
+    with db.transaction():
+        for fact, embedding in zip(valid_facts, embeddings):
+            db.execute("""
+                INSERT INTO facts (
+                    user_id, conversation_id, data, embedding,
+                    extracted_at_message, created_at, status
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, 'active'
+                )
+            """, (
+                user_id,
+                conversation_id,
+                json.dumps(fact),           # Store fact as JSONB
+                embedding,                   # pgvector column
+                len(messages),
+                datetime.now()
+            ))
+            
+            # Audit log
+            db.execute("""
+                INSERT INTO audit_log (user_id, action, fact_id, reason)
+                VALUES (%s, 'fact_extracted', %s, 'judge_trigger')
+            """, (user_id, fact["id"]))
+```
+
+### 5.2 Retrieval (Semantic Search)
+
+```python
+def retrieve_context(
+    user_id: str,
+    query: str,
+    embedding_model,
+    k: int = 5
+):
+    """Retrieve top-k similar facts using vector similarity."""
     
     # Embed query
-    query_embedding = embeddings.embed_query(query)
+    query_embedding = embedding_model.embed(query)
     
-    # Search in user's namespace
-    results = pinecone.Index("velmo-facts").query(
-        query_embedding,
-        top_k=k,
-        namespace=f"user_{user_id}",
-        include_metadata=True
-    )
+    # Semantic search in PostgreSQL
+    results = db.query("""
+        SELECT 
+            fact_id,
+            user_id,
+            data,
+            embedding <-> %s AS distance,
+            1 - (embedding <=> %s) AS similarity
+        FROM facts
+        WHERE user_id = %s
+          AND status = 'active'
+        ORDER BY embedding <-> %s
+        LIMIT %s
+    """, (query_embedding, query_embedding, user_id, query_embedding, k))
     
-    # Format results
+    # Return facts with similarity scores
     facts = []
-    for match in results.matches:
-        facts.append({
-            "id": match.id,
-            "key": match.metadata["key"],
-            "type": match.metadata["type"],
-            "confidence": match.metadata["confidence"],
-            "similarity": match.score
-        })
+    for row in results:
+        fact = json.loads(row['data'])
+        fact['similarity'] = row['similarity']
+        fact['fact_id'] = row['fact_id']
+        facts.append(fact)
     
     return facts
 ```
 
-### 3.4 Version History (GDPR Compliance)
-
-Keep 2-3 recent versions for each fact:
+### 5.3 GDPR Soft-Delete
 
 ```python
-def update_fact(fact_id: str, new_value: str, reason: str):
-    """Update fact with version tracking."""
+def delete_fact_gdpr(fact_id: str, user_id: str, reason: str):
+    """Soft-delete a fact for GDPR compliance."""
     
-    fact = db.query(facts).filter(facts.fact_id == fact_id).first()
+    with db.transaction():
+        # Soft-delete
+        db.execute("""
+            UPDATE facts
+            SET status = 'soft_deleted',
+                deletion_reason = %s,
+                updated_at = NOW()
+            WHERE fact_id = %s AND user_id = %s
+        """, (reason, fact_id, user_id))
+        
+        # Audit trail
+        db.execute("""
+            INSERT INTO audit_log (
+                user_id, action, fact_id, reason
+            ) VALUES (%s, 'fact_soft_delete', %s, %s)
+        """, (user_id, fact_id, reason))
+```
+
+### 5.4 Version History (Track Changes)
+
+```python
+def update_fact_value(fact_id: str, new_value: str, reason: str):
+    """Update fact and keep version history."""
     
-    # Create version entry
-    old_version = {
-        "version": fact.version,
-        "value": fact.value,
-        "timestamp": fact.updated_at,
-        "reason": "previous"
+    # Get old fact
+    old_fact = db.query_one("""
+        SELECT data, version, version_history
+        FROM facts
+        WHERE fact_id = %s
+    """, (fact_id,))
+    
+    # Build version history
+    version_entry = {
+        "version": old_fact['version'],
+        "value": old_fact['data']['value'],
+        "timestamp": datetime.now().isoformat(),
+        "reason": reason
     }
     
-    # Append to history (keep last 3)
-    history = fact.version_history or []
-    history.append(old_version)
-    history = history[-2:]  # Keep only last 2 old versions
+    history = old_fact['version_history'] or []
+    history.append(version_entry)
+    
+    # Keep only last 3 versions
+    history = history[-3:]
     
     # Update fact
-    fact.value = new_value
-    fact.version += 1
-    fact.version_history = history
-    fact.updated_at = datetime.now()
-    
-    db.commit()
-```
-
-### 3.5 Soft-Delete (GDPR Right-to-Forget)
-
-```python
-def delete_fact_gdpr(fact_id: str, reason: str = "user_request"):
-    """Soft-delete fact for GDPR compliance."""
-    
-    fact = db.query(facts).filter(facts.fact_id == fact_id).first()
-    
-    fact.status = "soft_deleted"
-    fact.deletion_reason = reason
-    fact.updated_at = datetime.now()
-    
-    # Log audit trail
-    audit_log.create({
-        "user_id": fact.user_id,
-        "action": "fact_soft_delete",
-        "fact_id": fact_id,
-        "reason": reason,
-        "timestamp": datetime.now()
-    })
-    
-    db.commit()
-    
-    # Remove from Pinecone (cannot retrieve)
-    pinecone.Index("velmo-facts").delete(
-        ids=[fact_id],
-        namespace=f"user_{fact.user_id}"
-    )
+    db.execute("""
+        UPDATE facts
+        SET data = jsonb_set(data, '{value}', to_jsonb(%s)),
+            version = version + 1,
+            version_history = %s,
+            updated_at = NOW()
+        WHERE fact_id = %s
+    """, (new_value, json.dumps(history), fact_id))
 ```
 
 ---
 
-## 4. Full Conversation Flow
+## 6. Configuration
 
-```
-Turn 1-9:
-  Input → Validate → Memory.add() → Retrieve facts → LLM → Output
-
-Turn 10 (JUDGE TRIGGER):
-  Input → Validate → Memory.add()
-    ↓
-  Judge Extract (Kimi 2.6)
-    ├─ Input: Last 10 messages
-    └─ Output: JSON facts
+```yaml
+# config.yaml
+database:
+  type: postgresql
+  connection_string: "postgresql://user:pass@localhost:5432/velmo"
   
-  Validate facts (Pydantic, confidence >= 0.8)
-  Embed facts (OpenAI)
-  Persist:
-    ├─ PostgreSQL INSERT
-    ├─ Pinecone UPSERT
-    └─ Audit log
+memory:
+  short_term:
+    max_messages: 30              # 15 tours
+    max_size_bytes: 524288        # 512 KB
+    eviction_policy: lru
   
-  Clear old messages from window if budget > 80%
-    ↓
-  Retrieve facts → LLM → Output
+  extraction:
+    trigger_frequency: 5          # Every 5 tours
+    trigger_message_count: 10     # Every 10 messages
+    confidence_threshold: 0.8
+  
+embeddings:
+  model: "text-embedding-3-small"
+  dimensions: 384
+  cache_enabled: true
 
-Turn 11-19:
-  Same as 1-9
-
-Turn 20, 30, 40... (Judge triggers):
-  Same as Turn 10
+pgvector:
+  index_type: hnsw                # or ivfflat
+  metric: cosine                  # or l2, inner_product
+  m: 16                           # HNSW parameter
+  ef_construction: 64             # HNSW parameter
 ```
 
 ---
 
-## 5. Isolation & Security (R3)
+## 7. Migration & Setup
 
-### Per-User Isolation
+```bash
+# 1. Install pgvector extension
+psql -d velmo -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
-Every query includes `user_id` filter:
+# 2. Run migrations
+psql -d velmo -f schema.sql
 
-```python
-# PostgreSQL
-facts = db.query(facts) \
-    .filter(facts.user_id == current_user_id) \
-    .filter(facts.status == "active")
+# 3. Create indices
+psql -d velmo -f indices.sql
 
-# Pinecone (namespace)
-results = pinecone.query(
-    vector,
-    namespace=f"user_{current_user_id}"
-)
+# 4. Verify
+psql -d velmo -c "SELECT * FROM pg_extension WHERE extname = 'vector';"
 ```
-
-### Audit Logging
-
-```sql
-CREATE TABLE audit_log (
-    log_id UUID PRIMARY KEY,
-    user_id UUID NOT NULL,
-    action VARCHAR(100),           -- fact_extracted, fact_retrieved, fact_deleted
-    fact_id UUID,
-    old_value TEXT,
-    new_value TEXT,
-    reason VARCHAR(255),
-    timestamp TIMESTAMP,
-    
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    INDEX idx_user_timestamp (user_id, timestamp)
-);
-```
-
----
-
-## 6. Requirements Mapping
-
-| Req | Couche | Implementation |
-|-----|--------|-----------------|
-| **R1**: 30+ turns | 1+2+3 | Window keeps 30 msgs, Judge extracts critical facts, DB persists |
-| **R2**: Multi-session | 3 | PostgreSQL persistent storage |
-| **R3**: Isolation | 1+2+3 | user_id filter on all queries, Pinecone namespaces |
-| **R4**: Context budget | 1 | ConversationBufferWindowMemory(k=30, max_token_limit=100k) |
-| **R5**: GDPR forget | 3 | Soft-delete status + version history, audit trail |
-| **R6**: Auditability | 2+3 | Extraction metadata table + audit log table |
-
----
-
-## 7. Interactions avec Autres Chantiers
-
-**→ Chantier 2 (Guardrails)**:
-- Input validé avant Memory.add()
-- Facts retrieved vérifiés pour PII avant injection au LLM
-
-**→ Chantier 3 (Evals)**:
-- Extraction metadata → Analyse qualité Judge
-- Retrieval scores → Metrics dashboard
-- Version history → Fact staleness metrics
 
 ---
 
 ## 8. Performance Targets
 
-| Metric | Target | SLA |
-|--------|--------|-----|
-| Fenêtre window add | < 10ms | < 50ms |
-| Judge extract latency | < 3000ms | < 5000ms |
-| Embedding latency | < 1000ms | < 2000ms |
-| DB persist latency | < 500ms | < 1000ms |
-| Retrieval query | < 200ms | < 500ms |
-| Full turn latency | < 5000ms | < 8000ms |
-
----
-
-## 9. Configuration Files
-
-### .env
-
-```bash
-# PostgreSQL
-DATABASE_URL=postgresql://user:pass@localhost:5432/velmo
-
-# Pinecone
-PINECONE_API_KEY=xxx
-PINECONE_INDEX_NAME=velmo-facts
-
-# OpenAI (Embeddings)
-OPENAI_API_KEY=sk-xxx
-OPENAI_EMBEDDING_MODEL=text-embedding-3-large
-
-# Azure (Kimi)
-AZURE_OPENAI_API_KEY=xxx
-AZURE_OPENAI_ENDPOINT=https://eagwu-0283-resource.services.ai.azure.com/
-AZURE_OPENAI_DEPLOYMENT=kimi-2.6
-AZURE_OPENAI_API_VERSION=2024-08-01-preview
-
-# LangSmith
-LANGCHAIN_API_KEY=ls_prod_xxx
-LANGCHAIN_PROJECT=Velmo-2.0
-LANGCHAIN_TRACING_V2=true
-
-# Redis (rate limiting)
-REDIS_URL=redis://localhost:6379
-
-# Logging
-LOG_LEVEL=INFO
-```
+| Operation | Target | Status |
+|-----------|--------|--------|
+| Add to short-term window | < 5ms | ✅ RAM |
+| Judge extraction | < 3000ms | ⏱️ LLM dependent |
+| Embedding generation | < 1000ms | ⏱️ Model dependent |
+| Semantic search (k=5) | < 50ms | ✅ pgvector HNSW |
+| DB insert | < 10ms | ✅ PostgreSQL |
+| GDPR soft-delete | < 20ms | ✅ Single UPDATE |
 
 ---
 
 ## See Also
 
-- [02_SCHEMAS.md](./02_SCHEMAS.md) — JSON + SQL schemas détaillés
-- [AZURE_KIMI_INTEGRATION.md](./AZURE_KIMI_INTEGRATION.md) — Setup Kimi 2.6
-- [LANGSMITH_INTEGRATION.md](./LANGSMITH_INTEGRATION.md) — Tracing & monitoring
-- [../00_STACK_GLOBALE.md](../00_STACK_GLOBALE.md) — Stack global
+- [02_SCHEMAS.md](./02_SCHEMAS.md) — JSON Schema examples
+- [../00_STACK_GLOBALE.md](../00_STACK_GLOBALE.md) — Full stack overview
