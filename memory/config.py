@@ -59,3 +59,7 @@ class Settings:
 
 def load_settings() -> Settings:
     return Settings()
+
+
+# Module-level singleton for convenience imports (e.g. `from memory.config import settings`)
+settings = load_settings()

@@ -8,6 +8,17 @@ from .schema import FactData, ExtractionMetadata
 
 logger = logging.getLogger(__name__)
 
+
+class _JudgeFacade:
+    """Thin adapter exposing a simple extract_facts(user_id, turn_count) surface for VelmoAgent."""
+
+    def __init__(self, manager: "VelmoMemoryManager") -> None:
+        self._manager = manager
+
+    def extract_facts(self, user_id: str, turn_count: int = 10) -> list[str]:
+        return self._manager.trigger_fact_extraction(user_id, conversation_id=user_id)
+
+
 class VelmoMemoryManager:
     """Orchestrates short-term and long-term memory operations, including Judge fact extraction."""
 
@@ -15,9 +26,22 @@ class VelmoMemoryManager:
         self.settings = settings or load_settings()
         self.short_term = SlidingWindowMemory()
         self.long_term = LongTermMemory(self.settings)
-        
+
         # Local stats/counters for triggering extraction
         self._message_count = 0
+
+        # Facade exposing extract_facts(user_id, turn_count) for the orchestrator (VelmoAgent)
+        self.judge = _JudgeFacade(self)
+
+    def get_context(self, user_id: str) -> dict:
+        """Return the current memory context for the orchestrator (short-term window)."""
+        return {"short_term": self.short_term.history()}
+
+    def add_exchange(self, user_id: str, message: str, response: str) -> int:
+        """Record a user/assistant exchange and return the current turn number."""
+        self.record_user_message(user_id, conversation_id=user_id, content=message)
+        self.record_assistant_message(user_id, conversation_id=user_id, content=response)
+        return self._message_count // 2
 
     def record_user_message(self, user_id: str, conversation_id: str, content: str) -> None:
         """Record user message, increment count, and trigger Judge facts extraction if required."""

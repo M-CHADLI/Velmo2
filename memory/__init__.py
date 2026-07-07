@@ -13,6 +13,9 @@ from .long_term import LongTermMemory
 from .judge import JudgeAgent
 from .manager import VelmoMemoryManager
 
+# Alias used by the VelmoAgent orchestrator
+MemoryManager = VelmoMemoryManager
+
 __all__ = [
     "Settings",
     "load_settings",
@@ -22,4 +25,5 @@ __all__ = [
     "LongTermMemory",
     "JudgeAgent",
     "VelmoMemoryManager",
+    "MemoryManager",
 ]

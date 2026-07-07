@@ -19,6 +19,14 @@ _SECRET_PATTERNS = [
     r"secret\s+de\s+configuration",
 ]
 
+# Motifs de haine / discrimination (détection déterministe rapide)
+_HATE_PATTERNS = [
+    r"sont\s+des\s+sous-(etres|hommes|humains)",
+    r"sale\s+(race|arabe|juif|juive|noir|noire|blanc|blanche|etranger|etrangere)",
+    r"retournez?\s+dans\s+votre\s+pays",
+]
+_HATE_RE = [re.compile(p, re.IGNORECASE) for p in _HATE_PATTERNS]
+
 # Motifs PII en sortie
 _CREDIT_CARD = re.compile(r"\b(?:\d[ -]?){13,16}\b")
 _IBAN = re.compile(r"\b[A-Z]{2}\d{2}[ ]?(?:[A-Z0-9]{4}[ ]?){2,}[A-Z0-9]{1,4}\b")
@@ -36,6 +44,9 @@ def match_input_rules(message: str) -> tuple[str, str] | None:
     for rx in _SECRET_RE:
         if rx.search(message):
             return ("secret_leak", f"rule:{rx.pattern}")
+    for rx in _HATE_RE:
+        if rx.search(message):
+            return ("hate", f"rule:{rx.pattern}")
     return None
 
 
