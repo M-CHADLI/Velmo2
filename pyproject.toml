@@ -1,0 +1,22 @@
+[project]
+name = "velmo2"
+version = "0.1.0"
+description = "Velmo 2.0 Agent (Memory, Guardrails, Observability)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=0.1.0",
+    "langchain-openai>=0.1.0",
+    "langchain-community>=0.0.10",
+    "pydantic>=2.6.0",
+    "python-dotenv>=1.0.0",
+    "psycopg[binary]>=3.1.0",
+    "redis>=5.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "black>=24.0.0",
+    "ruff>=0.2.0",
+]
