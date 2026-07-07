@@ -1,5 +1,4 @@
 import logging
-import time
 from langchain_openai import AzureChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from memory.config import load_settings
