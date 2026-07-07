@@ -60,7 +60,8 @@ class VelmoAgent:
         full_prompt = f"{system_prompt}\n\nContext:\n{context_str}\n\nUser: {message}"
 
         try:
-            llm_response = self.llm.invoke(full_prompt)
+            llm_message = self.llm.invoke(full_prompt)
+            llm_response = llm_message.content if hasattr(llm_message, 'content') else str(llm_message)
         except Exception:
             # Fail-safe on Kimi error
             latency_ms = int((time.perf_counter() - start_time) * 1000)
