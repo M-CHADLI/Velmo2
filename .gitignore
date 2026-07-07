@@ -5,6 +5,7 @@
 
 # Skills installés localement (agents)
 .agents/
+.claude/
 skills-lock.json
 
 # Python
