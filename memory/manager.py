@@ -49,9 +49,17 @@ class VelmoMemoryManager:
         return self._message_count_by_user[user_id]
 
     def get_context(self, user_id: str) -> dict:
-        """Return the current memory context for the orchestrator (short-term window)."""
+        """Return the current memory context for the orchestrator (short-term + long-term facts)."""
         short_term = self._get_user_short_term(user_id)
-        return {"short_term": short_term.history()}
+        try:
+            long_term_facts = self.long_term.inspect_memory(user_id) if user_id else []
+        except Exception as e:
+            logger.error(f"Failed to retrieve long-term facts for user {user_id}: {e}")
+            long_term_facts = []
+        return {
+            "short_term": short_term.history(),
+            "long_term": long_term_facts or []
+        }
 
     def add_exchange(self, user_id: str, message: str, response: str) -> int:
         """Record a user/assistant exchange and return the current turn number."""
@@ -68,11 +76,14 @@ class VelmoMemoryManager:
         # Check for GDPR forget request in user message
         self.check_and_handle_forget_request(user_id, content)
 
-        # Trigger Judge extraction every 10 messages (5 tours)
-        trigger_freq = self.settings.extraction_trigger_frequency * 2
-        if count > 0 and count % trigger_freq == 0:
-            logger.info(f"Triggering Judge fact extraction (message count: {count})")
-            self.trigger_fact_extraction(user_id, conversation_id)
+        # NOTE: Automatic Judge extraction trigger here is intentionally disabled.
+        # VelmoAgent (the orchestrator) now owns triggering fact extraction based on its
+        # own turn-count logic via `self.judge.extract_facts(...)`. Keeping both triggers
+        # active caused duplicate/uncoordinated extraction runs.
+        # trigger_freq = self.settings.extraction_trigger_frequency * 2
+        # if count > 0 and count % trigger_freq == 0:
+        #     logger.info(f"Triggering Judge fact extraction (message count: {count})")
+        #     self.trigger_fact_extraction(user_id, conversation_id)
 
     def record_assistant_message(self, user_id: str, conversation_id: str, content: str) -> None:
         """Record assistant message to short-term memory."""
