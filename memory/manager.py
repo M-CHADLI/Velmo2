@@ -24,43 +24,61 @@ class VelmoMemoryManager:
 
     def __init__(self, settings=None) -> None:
         self.settings = settings or load_settings()
-        self.short_term = SlidingWindowMemory()
+        self.short_term_by_user = {}  # Per-user short-term memory
         self.long_term = LongTermMemory(self.settings)
 
-        # Local stats/counters for triggering extraction
-        self._message_count = 0
+        # Per-user message counts for triggering extraction
+        self._message_count_by_user = {}
 
         # Facade exposing extract_facts(user_id, turn_count) for the orchestrator (VelmoAgent)
         self.judge = _JudgeFacade(self)
 
+    def _get_user_short_term(self, user_id: str) -> SlidingWindowMemory:
+        """Get or create per-user short-term memory."""
+        if user_id not in self.short_term_by_user:
+            self.short_term_by_user[user_id] = SlidingWindowMemory()
+        return self.short_term_by_user[user_id]
+
+    def _get_user_message_count(self, user_id: str) -> int:
+        """Get current message count for user."""
+        return self._message_count_by_user.get(user_id, 0)
+
+    def _increment_user_message_count(self, user_id: str) -> int:
+        """Increment and return message count for user."""
+        self._message_count_by_user[user_id] = self._get_user_message_count(user_id) + 1
+        return self._message_count_by_user[user_id]
+
     def get_context(self, user_id: str) -> dict:
         """Return the current memory context for the orchestrator (short-term window)."""
-        return {"short_term": self.short_term.history()}
+        short_term = self._get_user_short_term(user_id)
+        return {"short_term": short_term.history()}
 
     def add_exchange(self, user_id: str, message: str, response: str) -> int:
         """Record a user/assistant exchange and return the current turn number."""
         self.record_user_message(user_id, conversation_id=user_id, content=message)
         self.record_assistant_message(user_id, conversation_id=user_id, content=response)
-        return self._message_count // 2
+        return self._message_count_by_user.get(user_id, 0) // 2
 
     def record_user_message(self, user_id: str, conversation_id: str, content: str) -> None:
         """Record user message, increment count, and trigger Judge facts extraction if required."""
-        self.short_term.record("user", content)
-        self._message_count += 1
+        short_term = self._get_user_short_term(user_id)
+        short_term.record("user", content)
+        count = self._increment_user_message_count(user_id)
 
         # Check for GDPR forget request in user message
         self.check_and_handle_forget_request(user_id, content)
 
         # Trigger Judge extraction every 10 messages (5 tours)
         trigger_freq = self.settings.extraction_trigger_frequency * 2
-        if self._message_count > 0 and self._message_count % trigger_freq == 0:
-            logger.info(f"Triggering Judge fact extraction (message count: {self._message_count})")
+        if count > 0 and count % trigger_freq == 0:
+            logger.info(f"Triggering Judge fact extraction (message count: {count})")
             self.trigger_fact_extraction(user_id, conversation_id)
 
     def record_assistant_message(self, user_id: str, conversation_id: str, content: str) -> None:
         """Record assistant message to short-term memory."""
-        self.short_term.record("assistant", content)
-        self._message_count += 1
+        short_term = self._get_user_short_term(user_id)
+        short_term.record("assistant", content)
+        self._increment_user_message_count(user_id)
 
     def trigger_fact_extraction(self, user_id: str, conversation_id: str) -> list[str]:
         """Manually trigger Kimi 2.6 Judge facts extraction on the last 10 messages."""
@@ -68,16 +86,19 @@ class VelmoMemoryManager:
         judge = JudgeAgent(self.settings)
 
         # Retrieve last 10 messages from sliding window
-        history_msgs = self.short_term.history()[-10:]
+        short_term = self._get_user_short_term(user_id)
+        history_msgs = short_term.history()[-10:]
         if not history_msgs:
             return []
 
         # Run extraction
         db_start = time.perf_counter()
         extracted_facts, avg_confidence, judge_latency_ms = judge.extract_facts(history_msgs)
-        
+
         valid_facts_count = 0
         stored_ids = []
+
+        message_count = self._get_user_message_count(user_id)
 
         # Persist valid facts to long-term memory
         for fact in extracted_facts:
@@ -88,7 +109,7 @@ class VelmoMemoryManager:
                         user_id=user_id,
                         conversation_id=conversation_id,
                         fact_data=fact,
-                        extracted_at_msg=self._message_count
+                        extracted_at_msg=message_count
                     )
                     stored_ids.append(fact_id)
                 except Exception as e:
@@ -100,8 +121,8 @@ class VelmoMemoryManager:
         meta = ExtractionMetadata(
             user_id=user_id,
             conversation_id=conversation_id,
-            round_number=(self._message_count // 10),
-            messages_count=self._message_count,
+            round_number=(message_count // 10),
+            messages_count=message_count,
             judge_confidence=avg_confidence,
             judge_latency_ms=judge_latency_ms,
             facts_extracted=len(extracted_facts),
@@ -143,7 +164,7 @@ class VelmoMemoryManager:
         """
         content_lower = content.lower()
         forget_keywords = ["oublie", "supprime", "efface", "forget", "delete", "remove"]
-        
+
         # Check if the user is asking to forget something
         if not any(kw in content_lower for kw in forget_keywords):
             return False
@@ -158,7 +179,12 @@ class VelmoMemoryManager:
             target_keys.extend(["contact_method", "preference", "langue", "tutoiement"])
 
         # Fetch active facts for the user
-        active_facts = self.long_term.inspect_memory(user_id)
+        try:
+            active_facts = self.long_term.inspect_memory(user_id)
+        except Exception as e:
+            logger.error(f"Error checking forget request for user {user_id}: {e}")
+            return False
+
         if not active_facts:
             return False
 
@@ -173,13 +199,16 @@ class VelmoMemoryManager:
             val_match = (fact_val in content_lower) or any(term in content_lower for term in fact_val.split())
 
             if key_match or val_match:
-                success = self.long_term.delete_fact_gdpr(
-                    fact_id=fact_id,
-                    user_id=user_id,
-                    reason=f"GDPR user request: '{content}'"
-                )
-                if success:
-                    deleted_any = True
+                try:
+                    success = self.long_term.delete_fact_gdpr(
+                        fact_id=fact_id,
+                        user_id=user_id,
+                        reason=f"GDPR user request: '{content}'"
+                    )
+                    if success:
+                        deleted_any = True
+                except Exception as e:
+                    logger.error(f"Error deleting fact {fact_id}: {e}")
 
         return deleted_any
 
