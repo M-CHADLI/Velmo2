@@ -21,9 +21,9 @@ def test_classify_returns_category():
     assert clf.classify("Sale race, retournez dans votre pays.") == "hate"
 
 
-def test_classify_normalizes_unknown_to_legitimate():
+def test_classify_normalizes_unknown_to_out_of_scope():
     clf = _make_classifier_with_mock(return_content="banana")
-    assert clf.classify("Bonjour") == "legitimate"
+    assert clf.classify("Bonjour") == "out_of_scope"
 
 
 def test_classify_retries_then_raises():

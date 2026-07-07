@@ -46,8 +46,8 @@ class KimiClassifier:
                 resp = self._chain.invoke({"message": message})
                 category = resp.content.strip().lower()
                 if category not in VALID_CATEGORIES:
-                    logger.warning(f"Catégorie inconnue '{category}', fallback legitimate")
-                    return "legitimate"
+                    logger.warning(f"Catégorie inconnue '{category}', fallback out_of_scope")
+                    return "out_of_scope"
                 return category
             except Exception as e:  # noqa: BLE001
                 last_exc = e
