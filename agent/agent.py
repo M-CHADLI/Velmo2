@@ -1,4 +1,4 @@
-"""VelmoAgent — orchestrator for memory + guardrails + Kimi."""
+"""VelmoAgent — orchestrator for memory + guardrails + DeepSeek."""
 import time
 from typing import Optional
 from agent.schema import VelmoResponse
@@ -9,7 +9,7 @@ from memory.config import settings as default_settings
 
 
 class VelmoAgent:
-    """Orchestrator: memory + guardrails + Kimi LLM."""
+    """Orchestrator: memory + guardrails + DeepSeek LLM."""
 
     def __init__(
         self,
@@ -28,7 +28,7 @@ class VelmoAgent:
         )
 
     def process_message(self, user_id: str, message: str) -> VelmoResponse:
-        """Process message end-to-end: input -> memory -> kimi -> output -> store."""
+        """Process message end-to-end: input -> memory -> deepseek -> output -> store."""
         start_time = time.perf_counter()
 
         # Stage 1: Input guard
@@ -50,7 +50,7 @@ class VelmoAgent:
         except Exception:
             context = {}
 
-        # Stage 3: Call Kimi
+        # Stage 3: Call DeepSeek
         system_prompt = "You are Velmo, an e-commerce support assistant. Answer briefly and helpfully."
         context_str = ""
         if context.get("short_term"):
@@ -62,7 +62,7 @@ class VelmoAgent:
             llm_message = self.llm.invoke(full_prompt)
             llm_response = llm_message.content if hasattr(llm_message, 'content') else str(llm_message)
         except Exception:
-            # Fail-safe on Kimi error
+            # Fail-safe on DeepSeek error
             latency_ms = int((time.perf_counter() - start_time) * 1000)
             return VelmoResponse(
                 allowed=False,
@@ -93,7 +93,7 @@ class VelmoAgent:
             # Memory failure doesn't block response
             turn_number = 0
 
-        # Stage 6: Trigger judge every 5 messages
+        # Stage 6: Trigger judge every 5 turns
         if turn_number > 0 and turn_number % 5 == 0:
             try:
                 self.memory.judge.extract_facts(user_id, turn_count=10)

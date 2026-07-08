@@ -5,7 +5,7 @@ import uuid
 import numpy as np
 from datetime import datetime
 from typing import Any, Optional
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import AzureOpenAIEmbeddings
 from .config import load_settings
 from .database import get_db
 from .schema import Fact, FactData, AuditLog, ExtractionMetadata
@@ -18,16 +18,18 @@ class LongTermMemory:
     def __init__(self, settings=None, db=None) -> None:
         self.settings = settings or load_settings()
         self.db = db or get_db()
-        
-        # Initialize LangChain OpenAI embeddings
+
+        # Initialize LangChain Azure OpenAI embeddings (text-embedding-3-small via Azure)
         try:
-            self.embeddings = OpenAIEmbeddings(
+            self.embeddings = AzureOpenAIEmbeddings(
                 model=self.settings.embedding_model,
-                openai_api_key=self.settings.openai_api_key,
+                api_key=self.settings.azure_openai_api_key,
+                azure_endpoint=self.settings.azure_openai_endpoint,
+                api_version=self.settings.azure_openai_api_version,
                 dimensions=self.settings.embedding_dimensions
             )
         except Exception as e:
-            logger.warning(f"Could not initialize OpenAIEmbeddings: {e}. Fallback to mock embeddings will be active.")
+            logger.warning(f"Could not initialize AzureOpenAIEmbeddings: {e}. Fallback to mock embeddings will be active.")
             self.embeddings = None
 
     def _get_embedding(self, text: str) -> list[float]:

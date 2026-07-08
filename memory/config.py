@@ -18,7 +18,7 @@ class Settings:
             "REDIS_URL", "redis://localhost:6379/0"
         )
 
-        # Azure OpenAI (Kimi 2.6) config
+        # Azure OpenAI (DeepSeek-V4-Flash) config
         self.azure_openai_api_key: str = os.getenv(
             "AZURE_OPENAI_API_KEY", ""
         )
@@ -26,16 +26,10 @@ class Settings:
             "AZURE_OPENAI_ENDPOINT", ""
         )
         self.azure_openai_deployment_name: str = os.getenv(
-            "AZURE_OPENAI_DEPLOYMENT_NAME", "Kimi-K2.6"
+            "AZURE_OPENAI_DEPLOYMENT_NAME", "DeepSeek-V4-Flash"
         )
         self.azure_openai_api_version: str = os.getenv(
-            "AZURE_OPENAI_API_VERSION", "2024-08-01-preview"
-        )
-
-        # OpenAI (for embeddings) config
-        # Fall back to Azure OpenAI key if OpenAI API key is not set
-        self.openai_api_key: str = os.getenv(
-            "OPENAI_API_KEY", self.azure_openai_api_key
+            "AZURE_OPENAI_API_VERSION", "2026-04-23"
         )
 
         # Embedding config
