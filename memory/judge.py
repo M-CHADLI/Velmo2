@@ -2,7 +2,7 @@ import json
 import logging
 import time
 from typing import Any
-from langchain_openai import AzureChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from .config import load_settings
 from .schema import FactData
@@ -47,11 +47,10 @@ class JudgeAgent:
 
     def __init__(self, settings=None) -> None:
         self.settings = settings or load_settings()
-        self.llm = AzureChatOpenAI(
-            azure_deployment=self.settings.azure_openai_deployment_name,
-            azure_endpoint=self.settings.azure_openai_endpoint,
+        self.llm = ChatOpenAI(
+            model=self.settings.azure_openai_deployment_name,
             api_key=self.settings.azure_openai_api_key,
-            api_version=self.settings.azure_openai_api_version,
+            base_url=self.settings.azure_openai_endpoint,
             temperature=0.0,  # Deterministic fact extraction
         )
 

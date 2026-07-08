@@ -4,7 +4,7 @@ from typing import Optional
 from agent.schema import VelmoResponse
 from guardrails import GuardrailManager
 from memory import MemoryManager
-from langchain_openai import AzureChatOpenAI
+from langchain_openai import ChatOpenAI
 from memory.config import settings as default_settings
 
 
@@ -15,16 +15,15 @@ class VelmoAgent:
         self,
         settings=None,
         classifier=None,
-        llm: Optional[AzureChatOpenAI] = None
+        llm: Optional[ChatOpenAI] = None
     ):
         self.settings = settings or default_settings
         self.guardrail = GuardrailManager(settings=self.settings, classifier=classifier)
         self.memory = MemoryManager(settings=self.settings)
-        self.llm = llm or AzureChatOpenAI(
-            azure_deployment=self.settings.azure_openai_deployment_name,
-            azure_endpoint=self.settings.azure_openai_endpoint,
+        self.llm = llm or ChatOpenAI(
+            model=self.settings.azure_openai_deployment_name,
             api_key=self.settings.azure_openai_api_key,
-            api_version=self.settings.azure_openai_api_version,
+            base_url=self.settings.azure_openai_endpoint,
             temperature=0.5,
         )
 
