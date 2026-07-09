@@ -78,11 +78,53 @@ class AgentWrapper:
         response = self.velmo_agent.process_message(user_id, user_message)
         return {
             "text": response.message,
-            "tokens_used": 0  # Not tracked by VelmoAgent
+            "tokens_used": 0,  # Not tracked by VelmoAgent
+            "metadata": {
+                "allowed": response.allowed,
+                "guard_decision": response.guard_decision,
+                "memory_context": response.memory_context,
+                "turn_number": response.turn_number,
+                "latency_ms": response.latency_ms
+            }
         }
 
 agent_wrapper = AgentWrapper(agent)
 chat_handler = ChatHandler(agent_wrapper, guardrail_manager, memory_manager)
+
+def format_metadata(metadata):
+    """Format agent metadata for display."""
+    if not metadata:
+        return ""
+
+    parts = []
+
+    # Input guard
+    if "input_guard" in metadata:
+        ig = metadata["input_guard"]
+        status = "🟢 allowed" if ig.get("allowed") else "🔴 blocked"
+        parts.append(f"[Input Guard] {status}")
+
+    # Memory context
+    if "memory_context" in metadata:
+        mem = metadata["memory_context"]
+        short = len(mem.get("short_term", []))
+        long = len(mem.get("long_term", []))
+        parts.append(f"[Memory] short_term: {short} turns, long_term: {long} facts")
+
+    # Output guard
+    if "output_guard" in metadata:
+        og = metadata["output_guard"]
+        status = "🟢 allowed" if og.get("allowed") else "🔴 blocked"
+        parts.append(f"[Output Guard] {status}")
+
+    # Turn number and judge trigger
+    if "turn_number" in metadata:
+        turn = metadata["turn_number"]
+        judge_trigger = turn % 5 == 0 if turn > 0 else False
+        trigger_text = " (judge trigger!)" if judge_trigger else ""
+        parts.append(f"[Turn {turn}/5 to judge trigger{trigger_text}]")
+
+    return "\n".join(parts)
 
 # Display chat history
 st.write("---")
@@ -117,6 +159,14 @@ if prompt := st.chat_input("Ask Velmo..."):
             with st.chat_message("assistant"):
                 response_text = result["response"]
                 st.write(response_text)
+
+                # Show metadata
+                metadata = result.get("metadata")
+                if metadata:
+                    metadata_text = format_metadata(metadata)
+                    if metadata_text:
+                        st.divider()
+                        st.text(metadata_text)
 
                 # Show latency
                 latency_ms = result.get("latency_ms", 0)

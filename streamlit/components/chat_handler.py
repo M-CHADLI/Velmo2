@@ -30,7 +30,8 @@ class ChatHandler:
                 "blocked_input": bool,
                 "blocked_output": bool,
                 "error": str | None,
-                "latency_ms": int
+                "latency_ms": int,
+                "metadata": dict | None
             }
         """
         start_time = time.perf_counter()
@@ -45,7 +46,10 @@ class ChatHandler:
                     "blocked_input": True,
                     "blocked_output": False,
                     "error": None,
-                    "latency_ms": latency_ms
+                    "latency_ms": latency_ms,
+                    "metadata": {
+                        "input_guard": input_decision.dict()
+                    }
                 }
 
             # 2. Record in memory
@@ -66,6 +70,7 @@ class ChatHandler:
                 )
 
             response_text = agent_response.get("text", "") if isinstance(agent_response, dict) else str(agent_response)
+            agent_metadata = agent_response.get("metadata") if isinstance(agent_response, dict) else None
 
             # 4. Check output guardrails
             output_decision = self.guardrail_manager.check_output(response_text, user_id)
@@ -77,7 +82,11 @@ class ChatHandler:
                     "blocked_input": False,
                     "blocked_output": True,
                     "error": None,
-                    "latency_ms": latency_ms
+                    "latency_ms": latency_ms,
+                    "metadata": {
+                        **agent_metadata or {},
+                        "output_guard": output_decision.dict()
+                    }
                 }
 
             # 5. Record assistant message
@@ -89,7 +98,8 @@ class ChatHandler:
                 "blocked_input": False,
                 "blocked_output": False,
                 "error": None,
-                "latency_ms": latency_ms
+                "latency_ms": latency_ms,
+                "metadata": agent_metadata
             }
 
         except Exception as e:
@@ -100,5 +110,6 @@ class ChatHandler:
                 "blocked_input": False,
                 "blocked_output": False,
                 "error": str(e),
-                "latency_ms": latency_ms
+                "latency_ms": latency_ms,
+                "metadata": None
             }
