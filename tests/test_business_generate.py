@@ -64,3 +64,20 @@ def test_order_items_reference_existing_products():
     product_ids = {p["product_id"] for p in ds.products}
     for it in ds.order_items:
         assert it["product_id"] in product_ids
+
+
+def test_shipment_en_preparation_branch():
+    ds = assemble_dataset(DEFAULT_POOLS, n_customers=25, seed=5)
+    ship_by_order = {s["order_id"]: s for s in ds.shipments}
+    for o in ds.orders:
+        if o["status"] in {"en_attente", "payée", "préparation"}:
+            s = ship_by_order[o["order_id"]]
+            assert s["status"] == "en_préparation" and s["shipped_at"] is None
+
+
+def test_assemble_is_deterministic():
+    ds1 = assemble_dataset(DEFAULT_POOLS, n_customers=10, seed=1)
+    ds2 = assemble_dataset(DEFAULT_POOLS, n_customers=10, seed=1)
+    assert [c["customer_id"] for c in ds1.customers] == [c["customer_id"] for c in ds2.customers]
+    assert [o["order_id"] for o in ds1.orders] == [o["order_id"] for o in ds2.orders]
+    assert [p["sku"] for p in ds1.products] == [p["sku"] for p in ds2.products]

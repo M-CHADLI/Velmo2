@@ -16,10 +16,12 @@ VARIANT_VALUES = {
     "aucun": [None],
 }
 
-ORDER_STATUSES = ["en_attente", "payée", "préparation", "expédiée", "livrée", "annulée"]
-
 
 # --- Formats d'identifiants (alphanumériques préfixés) -----------------------
+def _uuid(rng: random.Random) -> str:
+    return str(uuid.UUID(int=rng.getrandbits(128)))
+
+
 def customer_ref(i: int) -> str:
     return f"CLI-{i:06d}"
 
@@ -75,7 +77,7 @@ def _build_products(pools: Pools, rng: random.Random, target: int) -> list[dict]
             name = base.name if variant is None else f"{base.name} {variant}"
             price = round(base.base_price_eur * rng.uniform(0.9, 1.15), 2)
             products.append({
-                "product_id": str(uuid.uuid4()),
+                "product_id": _uuid(rng),
                 "sku": sku,
                 "name": name,
                 "description": base.description,
@@ -94,7 +96,7 @@ def _build_customers(pools: Pools, rng: random.Random, n: int, demo_user_id: str
         last = rng.choice(pools.last_names)
         city: CityEntry = rng.choice(pools.cities)
         customers.append({
-            "customer_id": str(uuid.uuid4()),
+            "customer_id": _uuid(rng),
             "customer_ref": customer_ref(idx + 1),
             "full_name": f"{first} {last}",
             "email": _slug_email(first, last, emails),
@@ -115,7 +117,7 @@ def _shipment_for(order: dict, rng: random.Random, pools: Pools) -> dict | None:
         return None
     carrier = rng.choice(pools.carriers)
     base = {
-        "shipment_id": str(uuid.uuid4()),
+        "shipment_id": _uuid(rng),
         "order_id": order["order_id"],
         "carrier": carrier,
         "tracking_number": tracking_number(rng),
@@ -164,7 +166,7 @@ def _make_order(customer: dict, products: list[dict], rng: random.Random,
                 out: Dataset) -> None:
     placed, status = _placed_and_status(rng, now, forced)
     order = {
-        "order_id": str(uuid.uuid4()),
+        "order_id": _uuid(rng),
         "order_number": order_number(counter),
         "customer_id": customer["customer_id"],
         "status": status,
@@ -178,7 +180,7 @@ def _make_order(customer: dict, products: list[dict], rng: random.Random,
         qty = rng.randint(1, 3)
         total += qty * prod["price_eur"]
         out.order_items.append({
-            "item_id": str(uuid.uuid4()),
+            "item_id": _uuid(rng),
             "order_id": order["order_id"],
             "product_id": prod["product_id"],
             "quantity": qty,
