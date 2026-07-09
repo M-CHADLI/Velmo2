@@ -7,6 +7,11 @@ from memory import MemoryManager
 from langchain_openai import ChatOpenAI
 from memory.config import settings as default_settings
 from observability import set_user_context, trace_run
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from business.tools import TOOLS, set_business_identity, get_discovered_email
+import business.tools as _bt
+
+MAX_TOOL_ITERS = 3
 
 
 class VelmoAgent:
@@ -28,6 +33,42 @@ class VelmoAgent:
             temperature=0.5,
             max_tokens=self.settings.response_max_tokens,
         )
+
+    def _execute_tool(self, call: dict) -> str:
+        """Exécuter un tool_call LangChain et renvoyer son texte (jamais lever)."""
+        name = call.get("name")
+        args = call.get("args", {}) or {}
+        tool_map = {t.name: t for t in TOOLS}
+        tool = tool_map.get(name)
+        if tool is None:
+            return f"Outil inconnu : {name}"
+        try:
+            return tool.invoke(args)
+        except Exception as e:  # noqa: BLE001
+            return f"Erreur outil {name} : {e}"
+
+    def _generate_with_tools(self, messages: list) -> str:
+        """Boucle tool-calling bornée. Retombe sur un invoke simple si le modèle
+        ne supporte pas bind_tools."""
+        try:
+            llm_tools = self.llm.bind_tools(TOOLS)
+        except Exception:
+            with trace_run("agent_response") as run:
+                ai = self.llm.invoke(messages, config=run.config)
+            return ai.content if hasattr(ai, "content") else str(ai)
+
+        ai = None
+        for _ in range(MAX_TOOL_ITERS):
+            with trace_run("agent_response") as run:
+                ai = llm_tools.invoke(messages, config=run.config)
+            messages.append(ai)
+            tool_calls = getattr(ai, "tool_calls", None)
+            if not tool_calls:
+                break
+            for call in tool_calls:
+                result = self._execute_tool(call)
+                messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+        return ai.content if ai is not None and hasattr(ai, "content") else ""
 
     def process_message(self, user_id: str, message: str) -> VelmoResponse:
         """Process message end-to-end: input -> memory -> deepseek -> output -> store."""
@@ -61,16 +102,16 @@ class VelmoAgent:
         if context.get("short_term"):
             context_str = "\n".join([f"{m['role']}: {m['content']}" for m in context["short_term"]])
 
-        full_prompt = f"{system_prompt}\n\nContext:\n{context_str}\n\nUser: {message}"
+        # Set identity for business tools (pre-linked lookup by user_id)
+        set_business_identity(user_id)
 
+        # Stage 3: Generate response via bounded tool-calling loop
         try:
-            with trace_run("agent_response") as run:
-                llm_message = self.llm.invoke(full_prompt, config=run.config)
-                run.log_score(
-                    "response_latency_ms",
-                    (time.perf_counter() - start_time) * 1000,
-                )
-            llm_response = llm_message.content if hasattr(llm_message, 'content') else str(llm_message)
+            messages = [
+                SystemMessage(content=f"{system_prompt}\n\nContext:\n{context_str}"),
+                HumanMessage(content=message),
+            ]
+            llm_response = self._generate_with_tools(messages)
         except Exception:
             # Fail-safe on DeepSeek error
             latency_ms = int((time.perf_counter() - start_time) * 1000)
@@ -95,6 +136,22 @@ class VelmoAgent:
                 turn_number=0,
                 latency_ms=latency_ms
             )
+
+        # Persist any discovered customer email as a durable fact (best-effort)
+        discovered = get_discovered_email()
+        if discovered:
+            try:
+                from memory.schema import FactData
+                self.memory.long_term.store_fact(
+                    user_id=user_id,
+                    conversation_id=user_id,
+                    fact_data=FactData(key="customer_email", value=discovered,
+                                       type="identifier", confidence=1.0,
+                                       source="tool_lookup"),
+                    extracted_at_msg=0,
+                )
+            except Exception:
+                pass
 
         # Stage 5: Store in short-term memory
         try:
