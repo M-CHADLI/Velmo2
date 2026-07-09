@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 def init_guardrail_table(db=None) -> None:
-    """Crée la table guardrail_log si elle n'existe pas."""
+    """Crée la table guardrail_log si elle n'existe pas et fixe le schéma."""
     db = db or get_db()
     conn = db.connect()
     with conn.cursor() as cur:
@@ -16,13 +16,25 @@ def init_guardrail_table(db=None) -> None:
                 user_id     VARCHAR(100) NOT NULL,
                 where_      VARCHAR(10) NOT NULL,
                 category    VARCHAR(50) NOT NULL,
-                allowed     BOOLEAN NOT NULL,
+                allowed     BOOLEAN NOT NULL DEFAULT false,
                 reason      TEXT,
                 latency_ms  INTEGER,
                 created_at  TIMESTAMPTZ DEFAULT now()
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_guardrail_log_user_id ON guardrail_log(user_id);")
+
+        # Fix schema: ensure allowed column is NOT NULL with DEFAULT false
+        try:
+            # Set NULL values to false
+            cur.execute("UPDATE guardrail_log SET allowed = false WHERE allowed IS NULL;")
+            # Add NOT NULL constraint and DEFAULT
+            cur.execute("ALTER TABLE guardrail_log ALTER COLUMN allowed SET NOT NULL;")
+            cur.execute("ALTER TABLE guardrail_log ALTER COLUMN allowed SET DEFAULT false;")
+            logger.info("guardrail_log schema corrected")
+        except Exception as e:
+            logger.debug(f"Schema already correct or cannot modify: {e}")
+
     conn.commit()
 
 
