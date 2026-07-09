@@ -53,7 +53,7 @@ class DatabaseViewer:
                     FROM facts
                     WHERE user_id = %s
                     ORDER BY created_at DESC
-                    LIMIT 10
+                    LIMIT 5
                 """, (self.user_id,))
 
                 rows = cur.fetchall()
@@ -105,7 +105,7 @@ class DatabaseViewer:
                     FROM guardrail_log
                     WHERE user_id = %s
                     ORDER BY created_at DESC
-                    LIMIT 10
+                    LIMIT 5
                 """, (self.user_id,))
 
                 rows = cur.fetchall()
@@ -167,7 +167,7 @@ class DatabaseViewer:
                     FROM audit_log
                     WHERE user_id = %s
                     ORDER BY created_at DESC
-                    LIMIT 10
+                    LIMIT 5
                 """, (self.user_id,))
 
                 rows = cur.fetchall()
@@ -215,7 +215,7 @@ class DatabaseViewer:
                     FROM extraction_metadata
                     WHERE user_id = %s
                     ORDER BY created_at DESC
-                    LIMIT 10
+                    LIMIT 5
                 """, (self.user_id,))
 
                 rows = cur.fetchall()
