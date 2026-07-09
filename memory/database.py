@@ -2,7 +2,6 @@ import logging
 import psycopg
 from psycopg.rows import dict_row
 from .config import load_settings
-from guardrails.audit import init_guardrail_table
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +31,7 @@ class Database:
 
     def init_db(self) -> None:
         """Initialize database schema, tables, and extensions."""
+        from guardrails.audit import init_guardrail_table
         conn = self.connect()
         try:
             with conn.cursor() as cur:
