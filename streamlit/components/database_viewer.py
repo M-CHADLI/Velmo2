@@ -62,9 +62,11 @@ class DatabaseViewer:
                 st.info("Aucun fact stocké encore")
                 return
 
-            df = pd.DataFrame(rows, columns=[
-                'Fact ID', 'Key', 'Value', 'Type', 'Confidence', 'Created', 'Status'
-            ])
+            df = pd.DataFrame(rows).rename(columns={
+                'fact_id': 'Fact ID', 'key': 'Key', 'value': 'Value',
+                'type': 'Type', 'confidence': 'Confidence',
+                'created_at': 'Created', 'status': 'Status',
+            })[['Fact ID', 'Key', 'Value', 'Type', 'Confidence', 'Created', 'Status']]
 
             # Format confidence as percentage
             df['Confidence'] = df['Confidence'].apply(lambda x: f"{x*100:.0f}%" if x else "N/A")
@@ -131,9 +133,11 @@ class DatabaseViewer:
                     st.text(f"  - {uc['user_id']}: {uc['count']} lignes")
                 return
 
-            df = pd.DataFrame(rows, columns=[
-                'ID', 'Where', 'Category', 'Allowed', 'Reason', 'Latency (ms)', 'Created'
-            ])
+            df = pd.DataFrame(rows).rename(columns={
+                'id': 'ID', 'where_': 'Where', 'category': 'Category',
+                'allowed': 'Allowed', 'reason': 'Reason',
+                'latency_ms': 'Latency (ms)', 'created_at': 'Created',
+            })[['ID', 'Where', 'Category', 'Allowed', 'Reason', 'Latency (ms)', 'Created']]
 
             # Debug: show unique values in Allowed column
             logger.info(f"Guardrail data - Allowed values: {df['Allowed'].unique().tolist()}, types: {df['Allowed'].apply(type).unique().tolist()}")
@@ -197,9 +201,10 @@ class DatabaseViewer:
                 st.info("Aucune entrée audit encore")
                 return
 
-            df = pd.DataFrame(rows, columns=[
-                'Log ID', 'Action', 'Fact ID', 'Reason', 'Created'
-            ])
+            df = pd.DataFrame(rows).rename(columns={
+                'log_id': 'Log ID', 'action': 'Action', 'fact_id': 'Fact ID',
+                'reason': 'Reason', 'created_at': 'Created',
+            })[['Log ID', 'Action', 'Fact ID', 'Reason', 'Created']]
 
             # Format datetime
             if 'Created' in df.columns:
@@ -245,10 +250,13 @@ class DatabaseViewer:
                 st.info("Aucune extraction effectuée encore")
                 return
 
-            df = pd.DataFrame(rows, columns=[
-                'Extraction ID', 'Round', 'Messages', 'Judge Confidence',
-                'Facts Extracted', 'Facts Valid', 'Latency (ms)', 'Created'
-            ])
+            df = pd.DataFrame(rows).rename(columns={
+                'extraction_id': 'Extraction ID', 'round_number': 'Round',
+                'messages_count': 'Messages', 'judge_confidence': 'Judge Confidence',
+                'facts_extracted': 'Facts Extracted', 'facts_valid': 'Facts Valid',
+                'judge_latency_ms': 'Latency (ms)', 'created_at': 'Created',
+            })[['Extraction ID', 'Round', 'Messages', 'Judge Confidence',
+                'Facts Extracted', 'Facts Valid', 'Latency (ms)', 'Created']]
 
             # Format confidence as percentage
             if 'Judge Confidence' in df.columns:

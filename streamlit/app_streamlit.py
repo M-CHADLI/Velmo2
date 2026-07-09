@@ -125,8 +125,11 @@ def format_metadata(metadata):
         turn = metadata["turn_number"]
         if turn > 0:
             judge_trigger = turn % 5 == 0
-            trigger_text = " (judge trigger!)" if judge_trigger else ""
-            parts.append(f"[Turn {turn}/5 to judge trigger{trigger_text}]")
+            if judge_trigger:
+                parts.append(f"[Turn {turn} — judge trigger!]")
+            else:
+                turns_left = 5 - (turn % 5)
+                parts.append(f"[Turn {turn} — {turns_left} turn(s) to judge trigger]")
 
     return "\n".join(parts)
 
