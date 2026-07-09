@@ -7,11 +7,12 @@ import asyncio
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent))
 
 from memory import load_settings, get_db, VelmoMemoryManager
 from guardrails import GuardrailManager
-from streamlit.components.chat_handler import ChatHandler
-from streamlit.utils.session_manager import init_chat_session, add_message, get_messages, clear_messages
+from components.chat_handler import ChatHandler
+from utils.session_manager import init_chat_session, add_message, get_messages, clear_messages
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
