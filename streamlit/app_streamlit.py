@@ -81,7 +81,7 @@ class AgentWrapper:
             "tokens_used": 0,  # Not tracked by VelmoAgent
             "metadata": {
                 "allowed": response.allowed,
-                "guard_decision": response.guard_decision,
+                "guard_decision": response.guard_decision.dict() if response.guard_decision else None,
                 "memory_context": response.memory_context,
                 "turn_number": response.turn_number,
                 "latency_ms": response.latency_ms
