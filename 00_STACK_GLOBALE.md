@@ -63,8 +63,8 @@ User Input
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| Tracing | LangFuse | Full request tracing |
-| Metrics | LangFuse + custom | Quality metrics, latency, tokens |
+| Tracing | LangSmith | Full request tracing (auto-instrumented LangChain) |
+| Metrics | LangSmith feedback + custom | Quality metrics, latency, tokens, guardrail/judge scores |
 | Cost tracking | Custom dashboard | Monitor Kimi + OpenAI spend |
 
 ---

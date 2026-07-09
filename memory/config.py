@@ -32,6 +32,27 @@ class Settings:
             "AZURE_OPENAI_API_VERSION", "2026-04-23"
         )
 
+        # --- Latency tuning (see docs/OPTIMISATIONS_LATENCE.md) ---
+        # Classifier only needs to emit one category word → cap output tokens.
+        # A dedicated (lighter/faster) deployment can be pointed here without
+        # touching the main response model; defaults to the main deployment.
+        self.classifier_deployment_name: str = (
+            os.getenv("CLASSIFIER_DEPLOYMENT_NAME") or self.azure_openai_deployment_name
+        )
+        self.classifier_max_tokens: int = int(os.getenv("CLASSIFIER_MAX_TOKENS", "16"))
+        # Support answers are short; bound worst-case generation latency.
+        self.response_max_tokens: int = int(os.getenv("RESPONSE_MAX_TOKENS", "512"))
+
+        # LangSmith (Observability - Chantier 3)
+        self.langsmith_tracing: bool = os.getenv(
+            "LANGSMITH_TRACING", "false"
+        ).lower() in ("1", "true", "yes")
+        self.langsmith_api_key: str = os.getenv("LANGSMITH_API_KEY", "")
+        self.langsmith_project: str = os.getenv("LANGSMITH_PROJECT", "velmo-2.0")
+        self.langsmith_endpoint: str = os.getenv(
+            "LANGSMITH_ENDPOINT", "https://api.smith.langchain.com"
+        )
+
         # Embedding config
         self.embedding_model: str = os.getenv(
             "EMBEDDING_MODEL", "text-embedding-3-small"

@@ -6,6 +6,7 @@ from guardrails import GuardrailManager
 from memory import MemoryManager
 from langchain_openai import ChatOpenAI
 from memory.config import settings as default_settings
+from observability import set_user_context, trace_run
 
 
 class VelmoAgent:
@@ -25,11 +26,15 @@ class VelmoAgent:
             api_key=self.settings.azure_openai_api_key,
             base_url=self.settings.azure_openai_endpoint,
             temperature=0.5,
+            max_tokens=self.settings.response_max_tokens,
         )
 
     def process_message(self, user_id: str, message: str) -> VelmoResponse:
         """Process message end-to-end: input -> memory -> deepseek -> output -> store."""
         start_time = time.perf_counter()
+
+        # Attach user to all traces produced during this request
+        set_user_context(user_id)
 
         # Stage 1: Input guard
         input_decision = self.guardrail.check_input(message, user_id)
@@ -59,7 +64,12 @@ class VelmoAgent:
         full_prompt = f"{system_prompt}\n\nContext:\n{context_str}\n\nUser: {message}"
 
         try:
-            llm_message = self.llm.invoke(full_prompt)
+            with trace_run("agent_response") as run:
+                llm_message = self.llm.invoke(full_prompt, config=run.config)
+                run.log_score(
+                    "response_latency_ms",
+                    (time.perf_counter() - start_time) * 1000,
+                )
             llm_response = llm_message.content if hasattr(llm_message, 'content') else str(llm_message)
         except Exception:
             # Fail-safe on DeepSeek error

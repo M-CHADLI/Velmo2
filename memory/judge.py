@@ -6,6 +6,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from .config import load_settings
 from .schema import FactData
+from observability import trace_run
 
 logger = logging.getLogger(__name__)
 
@@ -77,49 +78,55 @@ class JudgeAgent:
             formatted_conv.append(f"{role_label}: {msg['content']}")
         conversation_str = "\n".join(formatted_conv)
 
-        # Trigger LLM and measure latency
+        # Trigger LLM and measure latency (traced end-to-end in LangSmith)
         start_time = time.perf_counter()
-        try:
-            chain = self.prompt | self.llm
-            response = chain.invoke({"conversation": conversation_str})
-            content = response.content.strip()
-            logger.debug(f"Judge Agent raw response: {content}")
-        except Exception as e:
-            logger.error(f"Error calling Judge LLM: {e}")
-            return [], 0.0, int((time.perf_counter() - start_time) * 1000)
-
-        latency_ms = int((time.perf_counter() - start_time) * 1000)
-
-        # Parse response
-        # Clean potential markdown JSON fences
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
-
-        try:
-            data = json.loads(content)
-            facts_list = data.get("facts", [])
-            extracted_facts = []
-            confidences = []
-
-            for f in facts_list:
-                # Validate using Pydantic schema
-                fact_obj = FactData(
-                    key=f.get("key"),
-                    value=str(f.get("value")),
-                    type=f.get("type", "user_fact"),
-                    confidence=float(f.get("confidence", 1.0)),
-                    source="user_statement",
-                    context=messages[-1]["content"] if messages else None
+        with trace_run("judge_extraction") as run:
+            try:
+                chain = self.prompt | self.llm
+                response = chain.invoke(
+                    {"conversation": conversation_str}, config=run.config
                 )
-                extracted_facts.append(fact_obj)
-                confidences.append(fact_obj.confidence)
+                content = response.content.strip()
+                logger.debug(f"Judge Agent raw response: {content}")
+            except Exception as e:
+                logger.error(f"Error calling Judge LLM: {e}")
+                return [], 0.0, int((time.perf_counter() - start_time) * 1000)
 
-            avg_confidence = sum(confidences) / len(confidences) if confidences else 1.0
-            return extracted_facts, avg_confidence, latency_ms
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
+            run.log_score("judge_latency_ms", latency_ms)
 
-        except Exception as e:
-            logger.error(f"Error parsing Judge Agent JSON response: {e}. Raw content: {content}")
-            return [], 0.0, latency_ms
+            # Parse response — clean potential markdown JSON fences
+            if content.startswith("```json"):
+                content = content[7:]
+            if content.endswith("```"):
+                content = content[:-3]
+            content = content.strip()
+
+            try:
+                data = json.loads(content)
+                facts_list = data.get("facts", [])
+                extracted_facts = []
+                confidences = []
+
+                for f in facts_list:
+                    # Validate using Pydantic schema
+                    fact_obj = FactData(
+                        key=f.get("key"),
+                        value=str(f.get("value")),
+                        type=f.get("type", "user_fact"),
+                        confidence=float(f.get("confidence", 1.0)),
+                        source="user_statement",
+                        context=messages[-1]["content"] if messages else None
+                    )
+                    extracted_facts.append(fact_obj)
+                    confidences.append(fact_obj.confidence)
+
+                avg_confidence = sum(confidences) / len(confidences) if confidences else 1.0
+                run.log_score("judge_confidence", avg_confidence)
+                run.log_score("facts_extracted", len(extracted_facts))
+                return extracted_facts, avg_confidence, latency_ms
+
+            except Exception as e:
+                logger.error(f"Error parsing Judge Agent JSON response: {e}. Raw content: {content}")
+                run.log_score("judge_confidence", 0.0)
+                return [], 0.0, latency_ms

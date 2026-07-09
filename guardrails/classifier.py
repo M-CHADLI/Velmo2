@@ -2,6 +2,7 @@ import logging
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from memory.config import load_settings
+from observability import trace_run
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +27,11 @@ class KimiClassifier:
     def __init__(self, settings=None) -> None:
         self.settings = settings or load_settings()
         self.llm = ChatOpenAI(
-            model=self.settings.azure_openai_deployment_name,
+            model=self.settings.classifier_deployment_name,
             api_key=self.settings.azure_openai_api_key,
             base_url=self.settings.azure_openai_endpoint,
             temperature=0.0,
+            max_tokens=self.settings.classifier_max_tokens,
         )
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", CLASSIFIER_SYSTEM_PROMPT),
@@ -42,11 +44,18 @@ class KimiClassifier:
         last_exc = None
         for attempt in range(_RETRIES):
             try:
-                resp = self._chain.invoke({"message": message})
-                category = resp.content.strip().lower()
-                if category not in VALID_CATEGORIES:
-                    logger.warning(f"Catégorie inconnue '{category}', fallback out_of_scope")
-                    return "out_of_scope"
+                with trace_run("guardrail_classifier") as run:
+                    resp = self._chain.invoke({"message": message}, config=run.config)
+                    category = resp.content.strip().lower()
+                    if category not in VALID_CATEGORIES:
+                        logger.warning(f"Catégorie inconnue '{category}', fallback out_of_scope")
+                        category = "out_of_scope"
+                    # legitimate -> not blocked ; anything else -> blocked
+                    run.log_score(
+                        "blocked",
+                        0.0 if category == "legitimate" else 1.0,
+                        comment=category,
+                    )
                 return category
             except Exception as e:  # noqa: BLE001
                 last_exc = e
