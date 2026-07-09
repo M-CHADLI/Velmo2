@@ -118,13 +118,16 @@ class DatabaseViewer:
                 'ID', 'Where', 'Category', 'Allowed', 'Reason', 'Latency (ms)', 'Created'
             ])
 
+            # Debug: show unique values in Allowed column
+            logger.info(f"Guardrail data - Allowed values: {df['Allowed'].unique().tolist()}, types: {df['Allowed'].apply(type).unique().tolist()}")
+
             # Format datetime
             if 'Created' in df.columns:
                 df['Created'] = pd.to_datetime(df['Created']).dt.strftime('%H:%M:%S')
 
             # Color code allowed/blocked
             def highlight_allowed(val):
-                if val == True:
+                if val is True or val == 1 or str(val).lower() == 'true':
                     return '🟢 Allowed'
                 else:
                     return '🔴 Blocked'

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -28,19 +29,23 @@ class ChatHandler:
                 "response": str,
                 "blocked_input": bool,
                 "blocked_output": bool,
-                "error": str | None
+                "error": str | None,
+                "latency_ms": int
             }
         """
+        start_time = time.perf_counter()
         try:
             # 1. Check input guardrails
             input_decision = self.guardrail_manager.check_input(user_message, user_id)
             if not input_decision.allowed:
+                latency_ms = int((time.perf_counter() - start_time) * 1000)
                 logger.warning(f"Input blocked: {input_decision.category}")
                 return {
                     "response": input_decision.safe_message or "Cannot process this request.",
                     "blocked_input": True,
                     "blocked_output": False,
-                    "error": None
+                    "error": None,
+                    "latency_ms": latency_ms
                 }
 
             # 2. Record in memory
@@ -65,29 +70,35 @@ class ChatHandler:
             # 4. Check output guardrails
             output_decision = self.guardrail_manager.check_output(response_text, user_id)
             if not output_decision.allowed:
+                latency_ms = int((time.perf_counter() - start_time) * 1000)
                 logger.warning(f"Output blocked: {output_decision.category}")
                 return {
                     "response": output_decision.safe_message or "Response blocked for safety.",
                     "blocked_input": False,
                     "blocked_output": True,
-                    "error": None
+                    "error": None,
+                    "latency_ms": latency_ms
                 }
 
             # 5. Record assistant message
             self.memory_manager.record_assistant_message(user_id, conversation_id, response_text)
 
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
             return {
                 "response": response_text,
                 "blocked_input": False,
                 "blocked_output": False,
-                "error": None
+                "error": None,
+                "latency_ms": latency_ms
             }
 
         except Exception as e:
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
             logger.error(f"Chat error: {e}")
             return {
                 "response": "Sorry, something went wrong. Please try again.",
                 "blocked_input": False,
                 "blocked_output": False,
-                "error": str(e)
+                "error": str(e),
+                "latency_ms": latency_ms
             }

@@ -118,6 +118,10 @@ if prompt := st.chat_input("Ask Velmo..."):
                 response_text = result["response"]
                 st.write(response_text)
 
+                # Show latency
+                latency_ms = result.get("latency_ms", 0)
+                st.caption(f"⏱️ Response time: {latency_ms}ms")
+
                 # Show warnings if blocked
                 if result["blocked_input"]:
                     st.warning("⚠️ Input was blocked for safety")
