@@ -32,6 +32,9 @@ def write_log(user_id: str, decision: GuardDecision, db=None) -> None:
         db = db or get_db()
         conn = db.connect()
         with conn.cursor() as cur:
+            logger.debug(f"Writing guardrail log: user_id={user_id}, where={decision.where}, "
+                        f"category={decision.category}, allowed={decision.allowed}, "
+                        f"reason={decision.reason}, latency={decision.latency_ms}")
             cur.execute(
                 """INSERT INTO guardrail_log (user_id, where_, category, allowed, reason, latency_ms)
                    VALUES (%s, %s, %s, %s, %s, %s)""",
@@ -39,5 +42,6 @@ def write_log(user_id: str, decision: GuardDecision, db=None) -> None:
                  decision.allowed, decision.reason, decision.latency_ms),
             )
         conn.commit()
+        logger.debug("Guardrail log written successfully")
     except Exception as e:  # noqa: BLE001
         logger.error(f"Échec écriture guardrail_log (décision conservée): {e}")

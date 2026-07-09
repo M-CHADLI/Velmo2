@@ -37,7 +37,9 @@ class ChatHandler:
         start_time = time.perf_counter()
         try:
             # 1. Check input guardrails
+            logger.info(f"Checking input guardrails for user {user_id}")
             input_decision = self.guardrail_manager.check_input(user_message, user_id)
+            logger.info(f"Input guard result: allowed={input_decision.allowed}, category={input_decision.category}")
             if not input_decision.allowed:
                 latency_ms = int((time.perf_counter() - start_time) * 1000)
                 logger.warning(f"Input blocked: {input_decision.category}")
@@ -73,7 +75,9 @@ class ChatHandler:
             agent_metadata = agent_response.get("metadata") if isinstance(agent_response, dict) else None
 
             # 4. Check output guardrails
+            logger.info(f"Checking output guardrails for user {user_id}")
             output_decision = self.guardrail_manager.check_output(response_text, user_id)
+            logger.info(f"Output guard result: allowed={output_decision.allowed}, category={output_decision.category}")
             if not output_decision.allowed:
                 latency_ms = int((time.perf_counter() - start_time) * 1000)
                 logger.warning(f"Output blocked: {output_decision.category}")
