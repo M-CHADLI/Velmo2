@@ -111,6 +111,10 @@ class Database:
 
                 # 5. Create guardrail_log table (for tracking all guardrail decisions)
                 init_guardrail_table(self)
+
+                # 6. Create business e-commerce tables (customers, products, orders, ...)
+                from business.schema import init_business_tables
+                init_business_tables(self)
         except Exception as e:
             conn.rollback()
             logger.error(f"Error initializing database: {e}")
