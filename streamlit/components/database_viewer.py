@@ -93,6 +93,19 @@ class DatabaseViewer:
         try:
             conn = self.db.connect()
             with conn.cursor() as cur:
+                # First, check what data exists
+                cur.execute("SELECT COUNT(*) as total FROM guardrail_log;")
+                total = cur.fetchone()['total']
+
+                cur.execute("""
+                    SELECT DISTINCT user_id, COUNT(*) as count
+                    FROM guardrail_log
+                    GROUP BY user_id
+                """)
+                user_counts = cur.fetchall()
+                logger.info(f"Guardrail_log total rows: {total}")
+                logger.info(f"Data by user_id: {user_counts}")
+
                 cur.execute("""
                     SELECT
                         id,
@@ -109,9 +122,13 @@ class DatabaseViewer:
                 """, (self.user_id,))
 
                 rows = cur.fetchall()
+                logger.info(f"Rows for user {self.user_id}: {len(rows)}")
 
             if not rows:
-                st.info("Aucune décision garde-fou encore")
+                st.warning(f"❌ Aucune donnée pour user_id='{self.user_id}'")
+                st.info(f"Données disponibles ({total} total):")
+                for uc in user_counts:
+                    st.text(f"  - {uc['user_id']}: {uc['count']} lignes")
                 return
 
             df = pd.DataFrame(rows, columns=[
@@ -127,6 +144,10 @@ class DatabaseViewer:
 
             # Color code allowed/blocked
             def highlight_allowed(val):
+                # Handle NaN (NULL values)
+                if pd.isna(val):
+                    return '⚠️ Unknown'
+                # Handle boolean, int, and string values
                 if val is True or val == 1 or str(val).lower() == 'true':
                     return '🟢 Allowed'
                 else:
