@@ -9,7 +9,6 @@ from memory.config import settings as default_settings
 from observability import set_user_context, trace_run
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from business.tools import TOOLS, set_business_identity, get_discovered_email
-import business.tools as _bt
 
 MAX_TOOL_ITERS = 3
 
@@ -54,13 +53,17 @@ class VelmoAgent:
             llm_tools = self.llm.bind_tools(TOOLS)
         except Exception:
             with trace_run("agent_response") as run:
+                _t = time.perf_counter()
                 ai = self.llm.invoke(messages, config=run.config)
+                run.log_score("response_latency_ms", (time.perf_counter() - _t) * 1000)
             return ai.content if hasattr(ai, "content") else str(ai)
 
         ai = None
         for _ in range(MAX_TOOL_ITERS):
             with trace_run("agent_response") as run:
+                _t = time.perf_counter()
                 ai = llm_tools.invoke(messages, config=run.config)
+                run.log_score("response_latency_ms", (time.perf_counter() - _t) * 1000)
             messages.append(ai)
             tool_calls = getattr(ai, "tool_calls", None)
             if not tool_calls:
