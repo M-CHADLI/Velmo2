@@ -17,6 +17,10 @@ venv/
 # Node
 node_modules/
 
+# Streamlit
+streamlit/.streamlit/secrets.toml
+.streamlit/
+
 # OS
 Thumbs.db
 .DS_Store
