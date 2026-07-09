@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from memory import load_settings, get_db, VelmoMemoryManager
 from guardrails import GuardrailManager
 from components.chat_handler import ChatHandler
+from components.database_viewer import DatabaseViewer
 from utils.session_manager import init_chat_session, add_message, get_messages, clear_messages
 
 logging.basicConfig(level=logging.INFO)
@@ -123,6 +124,11 @@ if prompt := st.chat_input("Ask Velmo..."):
         except Exception as e:
             st.error(f"Failed: {e}")
             logger.error(f"Chat error: {e}")
+
+# Database Viewer
+db = get_db()
+db_viewer = DatabaseViewer(db, user_id)
+db_viewer.render()
 
 # Sidebar
 with st.sidebar:
