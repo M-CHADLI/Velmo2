@@ -58,156 +58,200 @@ init_chat_session()
 st.title("🤖 Velmo 2.0 Support Chat")
 st.markdown("*Ask me anything about your account, orders, or support needs.*")
 
-# Get components
-user_id = "demo_user"
-conversation_id = st.session_state.get('conversation_id', 'conv_default')
-memory_manager = st.session_state.memory_manager
-guardrail_manager = st.session_state.guardrail_manager
+# Load customer references for selection
+def load_customer_refs():
+    """Load all customer refs from database."""
+    try:
+        db = get_db()
+        conn = db.connect()
+        with conn.cursor() as cur:
+            cur.execute("SELECT customer_ref FROM customers ORDER BY customer_ref;")
+            refs = [row['customer_ref'] for row in cur.fetchall()]
+        conn.close()
+        return refs
+    except Exception as e:
+        logger.error(f"Failed to load customer refs: {e}")
+        return []
 
-# Initialize real VelmoAgent (with shared memory manager)
-settings = st.session_state.settings
-agent = VelmoAgent(settings=settings)
-# Replace agent's memory with the shared session memory to persist state
-agent.memory = memory_manager
+# Customer selector
+if 'customer_refs_cache' not in st.session_state:
+    st.session_state.customer_refs_cache = load_customer_refs()
+    logger.info(f"Loaded {len(st.session_state.customer_refs_cache)} customer refs")
 
-# Wrapper for compatibility with ChatHandler
-class AgentWrapper:
-    def __init__(self, velmo_agent):
-        self.velmo_agent = velmo_agent
+customer_refs = st.session_state.customer_refs_cache
 
-    def generate_response(self, user_message: str, user_id: str, conversation_id: str):
-        """Wrapper to match ChatHandler interface."""
-        response = self.velmo_agent.process_message(user_id, user_message)
-        return {
-            "text": response.message,
-            "tokens_used": 0,  # Not tracked by VelmoAgent
-            "metadata": {
-                "allowed": response.allowed,
-                "guard_decision": response.guard_decision.dict() if response.guard_decision else None,
-                "memory_context": response.memory_context,
-                "turn_number": response.turn_number,
-                "latency_ms": response.latency_ms
-            }
-        }
+if not customer_refs:
+    st.error("❌ No customers found in database")
+    logger.error("No customer refs loaded")
+else:
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        st.markdown("**Select Customer:**")
 
-agent_wrapper = AgentWrapper(agent)
-chat_handler = ChatHandler(agent_wrapper, guardrail_manager, memory_manager)
+    with col2:
+        selected_ref = st.selectbox(
+            "Choose customer",
+            options=customer_refs,
+            label_visibility="collapsed",
+            key="customer_selector"
+        )
 
-def format_metadata(metadata):
-    """Format agent metadata for display."""
-    if not metadata:
-        return ""
-
-    parts = []
-
-    # Input guard
-    if "input_guard" in metadata:
-        ig = metadata["input_guard"]
-        status = "🟢 allowed" if ig.get("allowed") else "🔴 blocked"
-        parts.append(f"[Input Guard] {status}")
-
-    # Memory context (skip if empty)
-    if "memory_context" in metadata:
-        mem = metadata["memory_context"]
-        short = len(mem.get("short_term", []))
-        long = len(mem.get("long_term", []))
-        if short > 0 or long > 0:
-            parts.append(f"[Memory] short_term: {short} turns, long_term: {long} facts")
-
-    # Output guard
-    if "output_guard" in metadata:
-        og = metadata["output_guard"]
-        status = "🟢 allowed" if og.get("allowed") else "🔴 blocked"
-        parts.append(f"[Output Guard] {status}")
-
-    # Turn number and judge trigger (only if turn > 0)
-    if "turn_number" in metadata:
-        turn = metadata["turn_number"]
-        if turn > 0:
-            judge_trigger = turn % 5 == 0
-            if judge_trigger:
-                parts.append(f"[Turn {turn} — judge trigger!]")
-            else:
-                turns_left = 5 - (turn % 5)
-                parts.append(f"[Turn {turn} — {turns_left} turn(s) to judge trigger]")
-
-    return "\n".join(parts)
-
-# Display chat history
-st.write("---")
-for msg in get_messages():
-    role = msg["role"]
-    content = msg["content"]
-
-    if role == "user":
-        with st.chat_message("user"):
-            st.write(content)
-    else:
-        with st.chat_message("assistant"):
-            st.write(content)
-
-st.write("---")
-
-# Chat input
-if prompt := st.chat_input("Ask Velmo..."):
-    # Display user message
-    with st.chat_message("user"):
-        st.write(prompt)
-    add_message("user", prompt)
-
-    # Process through pipeline
-    with st.spinner("🤔 Thinking..."):
-        try:
-            result = asyncio.run(
-                chat_handler.process_message(prompt, user_id, conversation_id)
-            )
-
-            # Display response
-            with st.chat_message("assistant"):
-                response_text = result["response"]
-                st.write(response_text)
-
-                # Show metadata
-                metadata = result.get("metadata")
-                if metadata:
-                    metadata_text = format_metadata(metadata)
-                    if metadata_text:
-                        st.divider()
-                        st.text(metadata_text)
-
-                # Show latency
-                latency_ms = result.get("latency_ms", 0)
-                st.caption(f"⏱️ Response time: {latency_ms}ms")
-
-                # Show warnings if blocked
-                if result["blocked_input"]:
-                    st.warning("⚠️ Input was blocked for safety")
-                if result["blocked_output"]:
-                    st.warning("⚠️ Response was blocked for safety")
-
-            add_message("assistant", result["response"])
-
-            if result["error"]:
-                st.error(f"Error: {result['error']}")
-
-        except Exception as e:
-            st.error(f"Failed: {e}")
-            logger.error(f"Chat error: {e}")
-
-# Database Viewer
-db = get_db()
-db_viewer = DatabaseViewer(db, user_id)
-db_viewer.render()
-
-# Sidebar
-with st.sidebar:
-    st.write("**Velmo 2.0**")
-    st.write(f"User: {user_id}")
-    st.write(f"Messages: {st.session_state.message_count}")
-
-    if st.button("🔄 Clear Chat"):
+    # Detect customer change and reset chat
+    if 'current_customer' not in st.session_state:
+        st.session_state.current_customer = selected_ref
+    elif st.session_state.current_customer != selected_ref:
+        st.session_state.current_customer = selected_ref
         clear_messages()
-        st.rerun()
 
-    st.divider()
-    st.caption("Powered by Kimi 2.6 + PostgreSQL + LangChain")
+    user_id = selected_ref
+    conversation_id = st.session_state.get('conversation_id', 'conv_default')
+    memory_manager = st.session_state.memory_manager
+    guardrail_manager = st.session_state.guardrail_manager
+
+    # Initialize real VelmoAgent (with shared memory manager)
+    settings = st.session_state.settings
+    agent = VelmoAgent(settings=settings)
+    # Replace agent's memory with the shared session memory to persist state
+    agent.memory = memory_manager
+
+    # Wrapper for compatibility with ChatHandler
+    class AgentWrapper:
+        def __init__(self, velmo_agent):
+            self.velmo_agent = velmo_agent
+
+        def generate_response(self, user_message: str, user_id: str, conversation_id: str):
+            """Wrapper to match ChatHandler interface."""
+            response = self.velmo_agent.process_message(user_id, user_message)
+            return {
+                "text": response.message,
+                "tokens_used": 0,  # Not tracked by VelmoAgent
+                "metadata": {
+                    "allowed": response.allowed,
+                    "guard_decision": response.guard_decision.dict() if response.guard_decision else None,
+                    "memory_context": response.memory_context,
+                    "turn_number": response.turn_number,
+                    "latency_ms": response.latency_ms
+                }
+            }
+
+    agent_wrapper = AgentWrapper(agent)
+    chat_handler = ChatHandler(agent_wrapper, guardrail_manager, memory_manager)
+
+    def format_metadata(metadata):
+        """Format agent metadata for display."""
+        if not metadata:
+            return ""
+
+        parts = []
+
+        # Input guard
+        if "input_guard" in metadata:
+            ig = metadata["input_guard"]
+            status = "🟢 allowed" if ig.get("allowed") else "🔴 blocked"
+            parts.append(f"[Input Guard] {status}")
+
+        # Memory context (skip if empty)
+        if "memory_context" in metadata:
+            mem = metadata["memory_context"]
+            short = len(mem.get("short_term", []))
+            long = len(mem.get("long_term", []))
+            if short > 0 or long > 0:
+                parts.append(f"[Memory] short_term: {short} turns, long_term: {long} facts")
+
+        # Output guard
+        if "output_guard" in metadata:
+            og = metadata["output_guard"]
+            status = "🟢 allowed" if og.get("allowed") else "🔴 blocked"
+            parts.append(f"[Output Guard] {status}")
+
+        # Turn number and judge trigger (only if turn > 0)
+        if "turn_number" in metadata:
+            turn = metadata["turn_number"]
+            if turn > 0:
+                judge_trigger = turn % 5 == 0
+                if judge_trigger:
+                    parts.append(f"[Turn {turn} — judge trigger!]")
+                else:
+                    turns_left = 5 - (turn % 5)
+                    parts.append(f"[Turn {turn} — {turns_left} turn(s) to judge trigger]")
+
+        return "\n".join(parts)
+
+    # Display chat history
+    st.write("---")
+    for msg in get_messages():
+        role = msg["role"]
+        content = msg["content"]
+
+        if role == "user":
+            with st.chat_message("user"):
+                st.write(content)
+        else:
+            with st.chat_message("assistant"):
+                st.write(content)
+
+    st.write("---")
+
+    # Chat input
+    if prompt := st.chat_input("Ask Velmo..."):
+        # Display user message
+        with st.chat_message("user"):
+            st.write(prompt)
+        add_message("user", prompt)
+
+        # Process through pipeline
+        with st.spinner("🤔 Thinking..."):
+            try:
+                result = asyncio.run(
+                    chat_handler.process_message(prompt, user_id, conversation_id)
+                )
+
+                # Display response
+                with st.chat_message("assistant"):
+                    response_text = result["response"]
+                    st.write(response_text)
+
+                    # Show metadata
+                    metadata = result.get("metadata")
+                    if metadata:
+                        metadata_text = format_metadata(metadata)
+                        if metadata_text:
+                            st.divider()
+                            st.text(metadata_text)
+
+                    # Show latency
+                    latency_ms = result.get("latency_ms", 0)
+                    st.caption(f"⏱️ Response time: {latency_ms}ms")
+
+                    # Show warnings if blocked
+                    if result["blocked_input"]:
+                        st.warning("⚠️ Input was blocked for safety")
+                    if result["blocked_output"]:
+                        st.warning("⚠️ Response was blocked for safety")
+
+                add_message("assistant", result["response"])
+
+                if result["error"]:
+                    st.error(f"Error: {result['error']}")
+
+            except Exception as e:
+                st.error(f"Failed: {e}")
+                logger.error(f"Chat error: {e}")
+
+    # Database Viewer
+    db = get_db()
+    db_viewer = DatabaseViewer(db, user_id)
+    db_viewer.render()
+
+    # Sidebar
+    with st.sidebar:
+        st.write("**Velmo 2.0**")
+        st.write(f"User: {user_id}")
+        st.write(f"Messages: {st.session_state.message_count}")
+
+        if st.button("🔄 Clear Chat"):
+            clear_messages()
+            st.rerun()
+
+        st.divider()
+        st.caption("Powered by Kimi 2.6 + PostgreSQL + LangChain")
