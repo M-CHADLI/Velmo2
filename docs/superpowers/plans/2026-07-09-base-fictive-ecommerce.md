@@ -15,7 +15,7 @@
 - Tables métier **séparées** des tables mémoire ; créées via `init_business_tables(db)` appelée depuis `memory/database.py::init_db()`.
 - **Connexion PostgreSQL unique partagée** (`memory/database.py::get_db`), non thread-safe : tous les accès métier restent dans le thread principal (aucune parallélisation).
 - **Identifiants alphanumériques préfixés** : client `CLI-` + 6 chiffres (`CLI-000123`) ; commande `CMD-` + 4 chiffres (`CMD-4490`) ; produit `PRD-` + 4 alphanum. (`PRD-A1B2`) ; suivi `FR` + 9 chiffres (`FR123456789`).
-- Chaque table a une **UUID PK technique** (`gen_random_uuid()`) ; les identifiants métier sont `UNIQUE`.
+- Chaque table a une **UUID PK technique** (`gen_random_uuid()`). Les identifiants de **lookup** sont `UNIQUE` : `customer_ref`, `order_number`, `sku`. `tracking_number` est un attribut d'affichage **non-unique** (jamais utilisé comme clé de recherche) — décision humaine 2026-07-09.
 - **Statuts commande** : `en_attente | payée | préparation | expédiée | livrée | annulée`.
 - **Statuts livraison** : `en_préparation | en_transit | livré`.
 - Les **outils renvoient toujours un texte** (jamais d'exception) ; « introuvable » plutôt qu'une erreur.
