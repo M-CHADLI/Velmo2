@@ -104,12 +104,13 @@ def format_metadata(metadata):
         status = "🟢 allowed" if ig.get("allowed") else "🔴 blocked"
         parts.append(f"[Input Guard] {status}")
 
-    # Memory context
+    # Memory context (skip if empty)
     if "memory_context" in metadata:
         mem = metadata["memory_context"]
         short = len(mem.get("short_term", []))
         long = len(mem.get("long_term", []))
-        parts.append(f"[Memory] short_term: {short} turns, long_term: {long} facts")
+        if short > 0 or long > 0:
+            parts.append(f"[Memory] short_term: {short} turns, long_term: {long} facts")
 
     # Output guard
     if "output_guard" in metadata:
@@ -117,12 +118,13 @@ def format_metadata(metadata):
         status = "🟢 allowed" if og.get("allowed") else "🔴 blocked"
         parts.append(f"[Output Guard] {status}")
 
-    # Turn number and judge trigger
+    # Turn number and judge trigger (only if turn > 0)
     if "turn_number" in metadata:
         turn = metadata["turn_number"]
-        judge_trigger = turn % 5 == 0 if turn > 0 else False
-        trigger_text = " (judge trigger!)" if judge_trigger else ""
-        parts.append(f"[Turn {turn}/5 to judge trigger{trigger_text}]")
+        if turn > 0:
+            judge_trigger = turn % 5 == 0
+            trigger_text = " (judge trigger!)" if judge_trigger else ""
+            parts.append(f"[Turn {turn}/5 to judge trigger{trigger_text}]")
 
     return "\n".join(parts)
 
