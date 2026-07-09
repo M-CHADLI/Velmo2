@@ -1,6 +1,5 @@
-"""Outils LangChain de lecture métier + résolution d'identité (contextvar)."""
+"""Outils LangChain de lecture métier + résolution d'identité."""
 import logging
-from contextvars import ContextVar
 
 from langchain_core.tools import tool
 
@@ -8,21 +7,20 @@ from . import repository as repo
 
 logger = logging.getLogger(__name__)
 
-_identity: ContextVar[dict] = ContextVar("velmo_business_identity", default={})
-_discovered_email_storage: dict = {}  # Workaround for LangChain invoke context isolation
+# Identity is a plain module-level dict (NOT a ContextVar): LangChain tool
+# .invoke() runs in a copied context where ContextVar writes don't propagate
+# back to the caller. The app is single-threaded on the main thread (see
+# global constraints), so a module dict reset per request is correct and safe.
+_identity: dict = {}
 
 
 def set_business_identity(user_id: str, email: str | None = None) -> None:
-    _identity.set({"user_id": user_id, "email": email})
+    _identity.clear()
+    _identity.update({"user_id": user_id, "email": email})
 
 
 def get_discovered_email() -> str | None:
-    ident = _identity.get()
-    email_from_contextvar = ident.get("email") if ident else None
-    # Fallback to storage in case contextvar wasn't updated due to context isolation
-    if email_from_contextvar is None:
-        return _discovered_email_storage.get("email")
-    return email_from_contextvar
+    return _identity.get("email")
 
 
 def _format_order(o: dict) -> str:
@@ -58,15 +56,13 @@ def lookup_order(order_number: str) -> str:
 def get_customer_orders(email: str | None = None) -> str:
     """Liste les commandes d'un client. Si 'email' est fourni, cherche par email ;
     sinon utilise le client relié à l'utilisateur courant."""
-    ident = _identity.get()
     try:
         if email:
             customer = repo.get_customer_by_email(email)
             if customer:
-                _identity.set({**ident, "email": email})
-                _discovered_email_storage["email"] = email  # Store for context isolation workaround
+                _identity["email"] = email
         else:
-            customer = repo.get_customer_by_velmo_user(ident.get("user_id"))
+            customer = repo.get_customer_by_velmo_user(_identity.get("user_id"))
     except Exception as e:  # noqa: BLE001
         logger.error(f"get_customer_orders failed: {e}")
         return "Impossible de consulter les commandes pour le moment."

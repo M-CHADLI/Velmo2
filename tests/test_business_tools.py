@@ -52,3 +52,16 @@ def test_get_customer_orders_by_email_records_identity(monkeypatch):
     out = t.get_customer_orders.invoke({"email": "julie@example.fr"})
     assert t.get_discovered_email() == "julie@example.fr"
     assert "aucune commande" in out.lower()
+
+
+def test_identity_reset_prevents_cross_request_leak(monkeypatch):
+    monkeypatch.setattr(t.repo, "get_customer_by_email",
+                        lambda e, db=None: {"customer_id": "c2", "full_name": "Julie", "email": e})
+    monkeypatch.setattr(t.repo, "get_orders_for_customer", lambda cid, db=None: [])
+    # request 1: user discovers an email
+    t.set_business_identity("user_a")
+    t.get_customer_orders.invoke({"email": "julie@example.fr"})
+    assert t.get_discovered_email() == "julie@example.fr"
+    # request 2: a different user starts -> identity must be reset, no leak
+    t.set_business_identity("user_b")
+    assert t.get_discovered_email() is None
