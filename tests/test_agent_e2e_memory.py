@@ -17,11 +17,13 @@ def test_memory_recall_r1():
     classifier.classify.return_value = "legitimate"
 
     llm = MagicMock()
-    llm.invoke.side_effect = [
-        MagicMock(content="Bonjour, c'est noté : contrat CT-7788."),
-        MagicMock(content="La commande 4490 est en préparation."),
-        MagicMock(content="La livraison est gratuite dès 50 euros.")
+    bound = MagicMock()
+    bound.invoke.side_effect = [
+        MagicMock(content="Bonjour, c'est noté : contrat CT-7788.", tool_calls=None),
+        MagicMock(content="La commande 4490 est en préparation.", tool_calls=None),
+        MagicMock(content="La livraison est gratuite dès 50 euros.", tool_calls=None)
     ]
+    llm.bind_tools.return_value = bound
 
     agent = VelmoAgent(classifier=classifier, llm=llm)
 
@@ -45,7 +47,12 @@ def test_memory_isolation():
     classifier.classify.return_value = "legitimate"
 
     llm = MagicMock()
-    llm.invoke.side_effect = [MagicMock(content="Noté : SEC-AAA-111."), MagicMock(content="Noté : SEC-BBB-222.")]
+    bound = MagicMock()
+    bound.invoke.side_effect = [
+        MagicMock(content="Noté : SEC-AAA-111.", tool_calls=None),
+        MagicMock(content="Noté : SEC-BBB-222.", tool_calls=None)
+    ]
+    llm.bind_tools.return_value = bound
 
     agent = VelmoAgent(classifier=classifier, llm=llm)
 
@@ -64,10 +71,12 @@ def test_memory_forget():
     classifier.classify.return_value = "legitimate"
 
     llm = MagicMock()
-    llm.invoke.side_effect = [
-        MagicMock(content="C'est noté."),
-        MagicMock(content="C'est supprimé de ma mémoire.")
+    bound = MagicMock()
+    bound.invoke.side_effect = [
+        MagicMock(content="C'est noté.", tool_calls=None),
+        MagicMock(content="C'est supprimé de ma mémoire.", tool_calls=None)
     ]
+    llm.bind_tools.return_value = bound
 
     agent = VelmoAgent(classifier=classifier, llm=llm)
 
