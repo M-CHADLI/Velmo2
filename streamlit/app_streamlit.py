@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from memory import load_settings, get_db, VelmoMemoryManager
 from guardrails import GuardrailManager
+from agent.agent import VelmoAgent
 from components.chat_handler import ChatHandler
 from components.database_viewer import DatabaseViewer
 from utils.session_manager import init_chat_session, add_message, get_messages, clear_messages
@@ -63,18 +64,25 @@ conversation_id = st.session_state.get('conversation_id', 'conv_default')
 memory_manager = st.session_state.memory_manager
 guardrail_manager = st.session_state.guardrail_manager
 
-# Create a mock agent if not available
-class SimpleAgent:
+# Initialize real VelmoAgent
+settings = st.session_state.settings
+agent = VelmoAgent(settings=settings)
+
+# Wrapper for compatibility with ChatHandler
+class AgentWrapper:
+    def __init__(self, velmo_agent):
+        self.velmo_agent = velmo_agent
+
     def generate_response(self, user_message: str, user_id: str, conversation_id: str):
-        # Mock response - replace with real agent
+        """Wrapper to match ChatHandler interface."""
+        response = self.velmo_agent.process_message(user_id, user_message)
         return {
-            "text": f"Thanks for your message: '{user_message}'. This is a test response.",
-            "tokens_used": 100
+            "text": response.message,
+            "tokens_used": 0  # Not tracked by VelmoAgent
         }
 
-agent = SimpleAgent()  # TODO: Replace with real VelmoResponseAgent
-
-chat_handler = ChatHandler(agent, guardrail_manager, memory_manager)
+agent_wrapper = AgentWrapper(agent)
+chat_handler = ChatHandler(agent_wrapper, guardrail_manager, memory_manager)
 
 # Display chat history
 st.write("---")
