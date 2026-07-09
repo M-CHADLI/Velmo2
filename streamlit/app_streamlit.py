@@ -64,9 +64,11 @@ conversation_id = st.session_state.get('conversation_id', 'conv_default')
 memory_manager = st.session_state.memory_manager
 guardrail_manager = st.session_state.guardrail_manager
 
-# Initialize real VelmoAgent
+# Initialize real VelmoAgent (with shared memory manager)
 settings = st.session_state.settings
 agent = VelmoAgent(settings=settings)
+# Replace agent's memory with the shared session memory to persist state
+agent.memory = memory_manager
 
 # Wrapper for compatibility with ChatHandler
 class AgentWrapper:

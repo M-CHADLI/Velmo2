@@ -2,6 +2,7 @@ import logging
 import psycopg
 from psycopg.rows import dict_row
 from .config import load_settings
+from guardrails.audit import init_guardrail_table
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,9 @@ class Database:
 
                 conn.commit()
                 logger.info("Database tables initialized successfully.")
+
+                # 5. Create guardrail_log table (for tracking all guardrail decisions)
+                init_guardrail_table(self)
         except Exception as e:
             conn.rollback()
             logger.error(f"Error initializing database: {e}")
