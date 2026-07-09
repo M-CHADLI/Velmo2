@@ -84,7 +84,7 @@ class ChatHandler:
                     "error": None,
                     "latency_ms": latency_ms,
                     "metadata": {
-                        **agent_metadata or {},
+                        **(agent_metadata or {}),
                         "output_guard": output_decision.dict()
                     }
                 }
