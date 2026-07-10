@@ -54,8 +54,10 @@ def lookup_order(order_number: str) -> str:
 
 @tool
 def get_customer_orders(email: str | None = None) -> str:
-    """Liste les commandes d'un client. Si 'email' est fourni, cherche par email ;
-    sinon utilise le client relié à l'utilisateur courant."""
+    """Liste les commandes d'un client.
+
+    Si 'email' est fourni, cherche par email.
+    Sinon, utilise le client actuellement lié (numéro client CLI-* ou velmo_user_id)."""
     try:
         customer = None
         if email:

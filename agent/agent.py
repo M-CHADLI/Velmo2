@@ -101,6 +101,11 @@ class VelmoAgent:
 
         # Stage 3: Call DeepSeek
         system_prompt = "You are Velmo, an e-commerce support assistant. Answer briefly and helpfully."
+
+        # Add customer identifier if available (CLI-*, etc)
+        if user_id and user_id.startswith("CLI-"):
+            system_prompt += f"\n\nVous êtes lié au client: {user_id}. Utilisez ce numéro pour accéder aux commandes de ce client."
+
         context_parts = []
 
         # Include long-term facts first
