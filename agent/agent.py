@@ -101,9 +101,20 @@ class VelmoAgent:
 
         # Stage 3: Call DeepSeek
         system_prompt = "You are Velmo, an e-commerce support assistant. Answer briefly and helpfully."
-        context_str = ""
+        context_parts = []
+
+        # Include long-term facts first
+        if context.get("long_term"):
+            long_term_facts = context["long_term"]
+            facts_text = "\n".join([f"- {f.get('key', 'fact')}: {f.get('value', '')}" for f in long_term_facts])
+            context_parts.append(f"Informations connues sur l'utilisateur:\n{facts_text}")
+
+        # Then include short-term conversation history
         if context.get("short_term"):
-            context_str = "\n".join([f"{m['role']}: {m['content']}" for m in context["short_term"]])
+            short_term_text = "\n".join([f"{m['role']}: {m['content']}" for m in context["short_term"]])
+            context_parts.append(f"Historique récent:\n{short_term_text}")
+
+        context_str = "\n\n".join(context_parts)
 
         # Set identity for business tools (pre-linked lookup by user_id)
         set_business_identity(user_id)
