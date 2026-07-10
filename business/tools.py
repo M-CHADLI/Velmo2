@@ -89,50 +89,11 @@ def get_customer_orders(email: str | None = None) -> str:
         return "Impossible de consulter les commandes pour le moment."
     if not orders:
         return f"Aucune commande trouvée pour {customer['full_name']}."
-    lines = [f"Commandes de {customer['full_name']} :"]
+    lines = [f"Commandes de {customer['full_name']} (triées par date décroissante) :"]
     for o in orders:
         lines.append(f"  • {o['order_number']} — {o['status']} — "
-                     f"{float(o['total_eur']):.2f} €")
+                     f"{float(o['total_eur']):.2f} € — {o['placed_at']}")
     return "\n".join(lines)
 
 
-@tool
-def get_latest_order() -> str:
-    """Retourne la commande la plus récente du client actuellement lié.
-
-    Utilise automatiquement le numéro client (CLI-*) ou velmo_user_id."""
-    try:
-        customer = None
-        user_id = _identity.get("user_id")
-        # Try customer_ref first (e.g., CLI-000001)
-        if user_id and user_id.startswith("CLI-"):
-            customer = repo.get_customer_by_customer_ref(user_id)
-        # Fall back to velmo_user_id lookup
-        if not customer:
-            customer = repo.get_customer_by_velmo_user(user_id)
-    except Exception as e:  # noqa: BLE001
-        logger.error(f"get_latest_order failed: {e}")
-        return "Impossible de consulter les commandes pour le moment."
-    if not customer:
-        return ("Aucun client identifié. Donnez-moi votre email ou un numéro "
-                "de commande (ex. CMD-4490).")
-    try:
-        orders = repo.get_orders_for_customer(customer["customer_id"], limit=1)
-    except Exception as e:  # noqa: BLE001
-        logger.error(f"get_latest_order failed: {e}")
-        return "Impossible de consulter les commandes pour le moment."
-    if not orders:
-        return f"Aucune commande trouvée pour {customer['full_name']}."
-
-    # Get full order details for the latest one
-    latest_order = orders[0]
-    try:
-        full_order = repo.get_order_by_number(latest_order["order_number"])
-    except Exception as e:  # noqa: BLE001
-        logger.error(f"Failed to get full order details: {e}")
-        return "Impossible de consulter les détails de la commande."
-
-    return _format_order(full_order)
-
-
-TOOLS = [lookup_order, get_customer_orders, get_latest_order]
+TOOLS = [lookup_order, get_customer_orders]
