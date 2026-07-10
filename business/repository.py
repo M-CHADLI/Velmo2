@@ -67,6 +67,20 @@ def get_customer_by_velmo_user(user_id: str, db=None) -> dict | None:
     return dict(row) if row else None
 
 
+def get_customer_by_customer_ref(customer_ref: str, db=None) -> dict | None:
+    if not customer_ref:
+        return None
+    conn = _conn(db)
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT customer_id, full_name, email, customer_ref FROM customers "
+            "WHERE customer_ref = %s LIMIT 1",
+            (customer_ref,),
+        )
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
 def get_orders_for_customer(customer_id: str, db=None, limit: int = 10) -> list[dict]:
     conn = _conn(db)
     with conn.cursor() as cur:

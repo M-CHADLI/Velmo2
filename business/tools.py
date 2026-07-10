@@ -57,12 +57,19 @@ def get_customer_orders(email: str | None = None) -> str:
     """Liste les commandes d'un client. Si 'email' est fourni, cherche par email ;
     sinon utilise le client relié à l'utilisateur courant."""
     try:
+        customer = None
         if email:
             customer = repo.get_customer_by_email(email)
             if customer:
                 _identity["email"] = email
         else:
-            customer = repo.get_customer_by_velmo_user(_identity.get("user_id"))
+            user_id = _identity.get("user_id")
+            # Try customer_ref first (e.g., CLI-000001)
+            if user_id and user_id.startswith("CLI-"):
+                customer = repo.get_customer_by_customer_ref(user_id)
+            # Fall back to velmo_user_id lookup
+            if not customer:
+                customer = repo.get_customer_by_velmo_user(user_id)
     except Exception as e:  # noqa: BLE001
         logger.error(f"get_customer_orders failed: {e}")
         return "Impossible de consulter les commandes pour le moment."
