@@ -26,6 +26,8 @@ def get_discovered_email() -> str | None:
 def _format_order(o: dict) -> str:
     lines = [f"Commande {o['order_number']} — statut : {o['status']} — "
              f"total : {o['total_eur']:.2f} €"]
+    if o.get("placed_at"):
+        lines.append(f"Créée le : {o['placed_at']}")
     for it in o.get("items", []):
         lines.append(f"  • {it['quantity']}× {it['name']} ({it['sku']}) "
                      f"à {it['unit_price_eur']:.2f} €")
@@ -35,6 +37,8 @@ def _format_order(o: dict) -> str:
                      f"(suivi {ship['tracking_number']})")
         if ship.get("estimated_delivery"):
             lines.append(f"Livraison estimée : {ship['estimated_delivery']}")
+        if ship.get("delivered_at"):
+            lines.append(f"Livrée le : {ship['delivered_at']}")
     return "\n".join(lines)
 
 
