@@ -104,11 +104,11 @@ check: lint test
 # Memory operations
 eval-memory:
 	@echo "$(GREEN)Running memory evaluation...$(NC)"
-	python eval_memory.py
+	uv run python scripts/eval_memory.py
 
 eval-guardrails:
 	@echo "$(GREEN)Running guardrails evaluation...$(NC)"
-	python eval_guardrails.py
+	uv run python scripts/eval_guardrails.py
 
 # Status commands
 status:
