@@ -10,7 +10,7 @@ help:
 	@echo "$(GREEN)Velmo 2.0 - Available Commands$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Setup & Installation:$(NC)"
-	@echo "  make install          Install dependencies (pip install -e .)"
+	@echo "  make install          Install dependencies (uv sync)"
 	@echo "  make docker-up        Start Docker services (PostgreSQL + Redis)"
 	@echo "  make docker-down      Stop Docker services"
 	@echo "  make db-init          Initialize database schema"
@@ -27,8 +27,8 @@ help:
 	@echo ""
 
 install:
-	@echo "$(GREEN)Installing dependencies...$(NC)"
-	pip install -e .
+	@echo "$(GREEN)Installing dependencies with uv...$(NC)"
+	UV_LINK_MODE=copy uv sync
 
 docker-up:
 	@echo "$(GREEN)Starting Docker services (PostgreSQL + Redis)...$(NC)"
@@ -53,21 +53,21 @@ streamlit:
 
 test:
 	@echo "$(GREEN)Running tests...$(NC)"
-	pytest tests/ -v --tb=short
+	uv run pytest tests/ -v --tb=short
 
 test-watch:
 	@echo "$(GREEN)Running tests in watch mode...$(NC)"
-	pytest-watch tests/
+	uv run pytest-watch tests/
 
 lint:
 	@echo "$(GREEN)Running ruff linter...$(NC)"
-	ruff check . --select E,W,F
+	uv run ruff check .
 
 format:
 	@echo "$(GREEN)Formatting code with black...$(NC)"
-	black . --exclude '\.venv|\.git'
-	@echo "$(GREEN)Sorting imports with ruff...$(NC)"
-	ruff check . --fix
+	uv run black src tests scripts apps
+	@echo "$(GREEN)Fixing lint issues with ruff...$(NC)"
+	uv run ruff check . --fix
 
 clean:
 	@echo "$(YELLOW)Cleaning Python cache files...$(NC)"
@@ -122,6 +122,3 @@ status:
 	@echo "$(GREEN)Recent Commits:$(NC)"
 	git log --oneline -5
 
-requirements:
-	@echo "$(GREEN)Current Python dependencies:$(NC)"
-	pip list | grep -E "langchain|streamlit|pydantic|psycopg|redis|pytest"
