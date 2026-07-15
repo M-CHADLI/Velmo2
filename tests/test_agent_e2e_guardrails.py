@@ -156,7 +156,7 @@ def test_guardrail_stats():
         else:
             failed_cases.append(case["id"])
 
-    print(f"\nGuardrail E2E Stats:")
+    print("\nGuardrail E2E Stats:")
     print(f"  Passed: {passed}/{len(cases)}")
     if failed_cases:
         print(f"  Failed cases: {', '.join(failed_cases)}")

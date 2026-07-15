@@ -7,7 +7,7 @@ from velmo.memory import MemoryManager
 from langchain_openai import ChatOpenAI
 from velmo.config import settings as default_settings
 from velmo.observability import set_user_context, trace_run
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from velmo.business.tools import TOOLS, set_business_identity, get_discovered_email
 
 MAX_TOOL_ITERS = 3

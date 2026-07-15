@@ -40,7 +40,7 @@ def reset_database() -> None:
 def run_llm_query(manager: VelmoMemoryManager, user_id: str, question: str) -> str:
     """Query Kimi 2.6 using short-term history and retrieved long-term facts."""
     settings = load_settings()
-    
+
     # Instantiate AzureChatOpenAI
     llm = AzureChatOpenAI(
         azure_deployment=settings.azure_openai_deployment_name,
@@ -52,7 +52,7 @@ def run_llm_query(manager: VelmoMemoryManager, user_id: str, question: str) -> s
 
     # 1. Retrieve long-term context
     lt_context = manager.get_conversation_context(user_id, question, k=3)
-    
+
     # 2. Retrieve short-term history
     st_history_str = manager.short_term.format_history_string()
 
@@ -82,7 +82,7 @@ def evaluate_cases(cases_file: str) -> dict[str, Any]:
     """Execute evaluation cases and return scores."""
     settings = load_settings()
     db = get_db()
-    
+
     # Ensure database is initialized
     try:
         db.init_db()
@@ -114,13 +114,13 @@ def evaluate_cases(cases_file: str) -> dict[str, Any]:
         user_id = case["user_id"]
         turns = case["turns"]
         eval_info = case["evaluation"]
-        
+
         print(f"\n[Test Case] {case_id} (Tag: {tag}) - User: {user_id}")
-        
+
         # 1. Initialize Memory Manager
         manager = VelmoMemoryManager(settings)
         conv_id = f"conv-{case_id}"
-        
+
         # 2. Feed dialogue turns
         start_time = time.perf_counter()
         for turn in turns:
@@ -130,10 +130,10 @@ def evaluate_cases(cases_file: str) -> dict[str, Any]:
                 manager.record_user_message(user_id, conv_id, content)
             else:
                 manager.record_assistant_message(user_id, conv_id, content)
-        
+
         # Force a fact extraction at the end of the conversation to simulate final session sync
         manager.trigger_fact_extraction(user_id, conv_id)
-        
+
         # 3. Simulate session logic depending on requirement tag
         if eval_info["type"] == "persistence":
             # For multi-session persistence, clear short-term memory to force loading from database
@@ -158,21 +158,21 @@ def evaluate_cases(cases_file: str) -> dict[str, Any]:
                 print(f"  Result: \033[92mPASS\033[0m (Found expected substring: '{expected}')")
             else:
                 print(f"  Result: \033[91mFAIL\033[0m (Expected substring '{expected}' not found)")
-        
+
         elif eval_info["type"] == "forget":
             forbidden = eval_info["forbidden_substring"]
             # Check context retrieval directly to verify it was soft-deleted
             context = manager.get_conversation_context(user_id, question)
-            
+
             if normalize_text(forbidden) not in normalize_text(context) and normalize_text(forbidden) not in normalize_text(llm_response):
                 passed = True
                 print(f"  Result: \033[92mPASS\033[0m (Verified forgotten information '{forbidden}' is absent)")
             else:
                 print(f"  Result: \033[91mFAIL\033[0m (Forgotten information '{forbidden}' is still present in memory/response)")
-        
+
         if passed:
             passed_count += 1
-        
+
         results.append({
             "id": case_id,
             "tag": tag,
@@ -183,7 +183,7 @@ def evaluate_cases(cases_file: str) -> dict[str, Any]:
     # Summary
     success_rate = (passed_count / len(cases)) * 100 if cases else 0
     avg_latency = (total_latency_ms / len(cases)) if cases else 0
-    
+
     print("\n" + "="*80)
     print("EVALUATION SUMMARY")
     print("="*80)
@@ -206,5 +206,5 @@ if __name__ == "__main__":
     cases_file = "eval/memory_cases.jsonl"
     if len(sys.argv) > 1:
         cases_file = sys.argv[1]
-    
+
     evaluate_cases(cases_file)

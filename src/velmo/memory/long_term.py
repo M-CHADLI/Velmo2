@@ -1,6 +1,5 @@
 import json
 import logging
-import time
 import uuid
 import numpy as np
 from datetime import datetime
@@ -8,7 +7,7 @@ from typing import Any, Optional
 from langchain_openai import AzureOpenAIEmbeddings
 from ..config import load_settings
 from .database import get_db
-from .schema import Fact, FactData, AuditLog, ExtractionMetadata
+from .schema import FactData, ExtractionMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,7 @@ class LongTermMemory:
                 return self.embeddings.embed_query(text)
             except Exception as e:
                 logger.warning(f"OpenAI embedding API failed: {e}. Generating mock embedding.")
-        
+
         # Fallback deterministic mock embedding (generates a normalized vector of 384 dimensions)
         dim = self.settings.embedding_dimensions
         # Create a deterministic mock vector by hashing the text
@@ -70,11 +69,11 @@ class LongTermMemory:
             with conn.cursor() as cur:
                 # Check if an active fact with the same key already exists for this user
                 cur.execute("""
-                    SELECT fact_id, data, version, version_history 
-                    FROM facts 
+                    SELECT fact_id, data, version, version_history
+                    FROM facts
                     WHERE user_id = %s AND (data->>'key') = %s AND status = 'active'
                 """, (user_id, fact_data.key))
-                
+
                 existing = cur.fetchone()
 
                 if existing:
@@ -83,7 +82,7 @@ class LongTermMemory:
                     old_data = existing["data"]
                     old_version = existing["version"]
                     old_history = existing["version_history"] or []
-                    
+
                     # If value hasn't changed, just return the ID
                     if old_data.get("value") == fact_data.value:
                         return str(fact_id)
@@ -175,7 +174,7 @@ class LongTermMemory:
                 # Operators: <=> represents Cosine Distance
                 # Similarity is 1 - Cosine Distance
                 cur.execute("""
-                    SELECT 
+                    SELECT
                         fact_id,
                         data,
                         version,
@@ -188,13 +187,13 @@ class LongTermMemory:
                 """, (query_embedding, user_id, query_embedding, k))
 
                 results = cur.fetchall()
-                
+
                 # Format response and audit access
                 facts = []
                 for row in results:
                     fact_id = row["fact_id"]
                     data = row["data"]
-                    
+
                     # Log audit check for accessing fact
                     cur.execute("""
                         INSERT INTO audit_log (user_id, action, fact_id, reason)
@@ -236,15 +235,15 @@ class LongTermMemory:
             with conn.cursor() as cur:
                 # Fetch target fact first to log old value
                 cur.execute("""
-                    SELECT data FROM facts 
+                    SELECT data FROM facts
                     WHERE fact_id = %s AND user_id = %s AND status = 'active'
                 """, (fact_id, user_id))
                 row = cur.fetchone()
-                
+
                 if not row:
                     logger.warning(f"GDPR soft-delete failed: active fact {fact_id} for user {user_id} not found.")
                     return False
-                
+
                 old_value = row["data"]
 
                 # Soft delete update
@@ -282,7 +281,7 @@ class LongTermMemory:
                     ORDER BY created_at DESC
                 """, (user_id,))
                 rows = cur.fetchall()
-                
+
                 for row in rows:
                     row["log_id"] = str(row["log_id"])
                     if row["fact_id"]:
@@ -306,7 +305,7 @@ class LongTermMemory:
                     ORDER BY created_at DESC
                 """, (user_id,))
                 rows = cur.fetchall()
-                
+
                 facts = []
                 for row in rows:
                     fact = {

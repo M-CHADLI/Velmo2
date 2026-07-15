@@ -1,4 +1,3 @@
-from velmo.business.models import Pools
 from velmo.business.generate import (
     assemble_dataset, customer_ref, order_number, DEFAULT_POOLS,
 )

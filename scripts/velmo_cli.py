@@ -33,7 +33,7 @@ def cli():
                     continue
 
                 message = cmd[4:].strip()
-                click.echo(f"[Processing...]")
+                click.echo("[Processing...]")
 
                 response = agent.process_message(user_id, message)
 
@@ -47,7 +47,7 @@ def cli():
                 click.echo(f"[Memory] short_term: {short_term_count} turns, long_term: {long_term_count} facts")
 
                 if response.allowed:
-                    click.echo(f"[Output Guard] allowed")
+                    click.echo("[Output Guard] allowed")
                 else:
                     click.echo(f"[Output Guard] blocked: {response.guard_decision.category}")
 

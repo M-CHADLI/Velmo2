@@ -1,7 +1,6 @@
 import json
 import logging
 import time
-from typing import Any
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from ..config import load_settings

@@ -1,4 +1,3 @@
-from typing import Any
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from ..config import load_settings
 
@@ -23,7 +22,7 @@ class SlidingWindowMemory:
         # Normalise role to user/assistant
         normalized_role = "user" if role.lower() in ("user", "human") else "assistant"
         self._messages.append({"role": normalized_role, "content": content})
-        
+
         # Enforce sliding window capacity
         if len(self._messages) > self.max_messages:
             self._messages = self._messages[-self.max_messages:]

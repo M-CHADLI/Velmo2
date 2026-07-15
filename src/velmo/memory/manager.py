@@ -1,10 +1,10 @@
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 from ..config import load_settings
 from .short_term import SlidingWindowMemory
 from .long_term import LongTermMemory
-from .schema import FactData, ExtractionMetadata
+from .schema import ExtractionMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class VelmoMemoryManager:
         """Record user message, increment count, and trigger Judge facts extraction if required."""
         short_term = self._get_user_short_term(user_id)
         short_term.record("user", content)
-        count = self._increment_user_message_count(user_id)
+        self._increment_user_message_count(user_id)
 
         # Check for GDPR forget request in user message
         self.check_and_handle_forget_request(user_id, content)
@@ -165,7 +165,7 @@ class VelmoMemoryManager:
             if fact.get("confidence", 0.0) >= self.settings.confidence_threshold:
                 # Provide a natural phrasing
                 context_lines.append(f"- {fact['key']}: {fact['value']}")
-        
+
         return "\n".join(context_lines)
 
     def check_and_handle_forget_request(self, user_id: str, content: str) -> bool:
