@@ -1,7 +1,7 @@
 # tests/test_agent_e2e_memory.py
 import json
 from unittest.mock import MagicMock
-from agent.agent import VelmoAgent
+from velmo.agent.agent import VelmoAgent
 
 def load_memory_cases(path="eval/memory_cases.jsonl"):
     """Load memory test cases."""

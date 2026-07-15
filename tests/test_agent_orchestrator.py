@@ -1,9 +1,9 @@
 import time
 from unittest.mock import MagicMock, patch
 from langchain_core.messages import AIMessage
-from agent.agent import VelmoAgent
-from agent.schema import VelmoResponse
-from guardrails.schema import GuardDecision
+from velmo.agent.agent import VelmoAgent
+from velmo.agent.schema import VelmoResponse
+from velmo.guardrails.schema import GuardDecision
 
 
 def _llm_with_final_response(content: str) -> MagicMock:

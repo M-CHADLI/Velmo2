@@ -9,9 +9,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 
-from memory import load_settings, get_db, VelmoMemoryManager
-from guardrails import GuardrailManager
-from agent.agent import VelmoAgent
+from velmo.config import load_settings
+from velmo.memory import get_db, VelmoMemoryManager
+from velmo.guardrails import GuardrailManager
+from velmo.agent.agent import VelmoAgent
 from components.chat_handler import ChatHandler
 from components.database_viewer import DatabaseViewer
 from utils.session_manager import init_chat_session, add_message, get_messages, clear_messages

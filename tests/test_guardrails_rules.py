@@ -1,4 +1,4 @@
-from guardrails.rules import match_input_rules, match_output_pii
+from velmo.guardrails.rules import match_input_rules, match_output_pii
 
 
 def test_injection_detected():

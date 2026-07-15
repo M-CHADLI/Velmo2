@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock
-from business.schema import init_business_tables
+from velmo.business.schema import init_business_tables
 
 
 def _fake_db():

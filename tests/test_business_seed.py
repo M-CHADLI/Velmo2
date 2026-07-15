@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 import scripts.seed_business_db as s
-from business.generate import DEFAULT_POOLS
+from velmo.business.generate import DEFAULT_POOLS
 
 
 def test_generate_pools_falls_back_on_llm_error(monkeypatch):
@@ -18,7 +18,7 @@ def test_insert_dataset_truncates_then_inserts():
     conn.cursor.return_value.__enter__.return_value = cur
     db = MagicMock()
     db.connect.return_value = conn
-    from business.generate import assemble_dataset
+    from velmo.business.generate import assemble_dataset
     ds = assemble_dataset(DEFAULT_POOLS, n_customers=5, seed=7)
     s.insert_dataset(ds, db=db)
     executed = " ".join(str(c.args[0]) for c in cur.execute.call_args_list

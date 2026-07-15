@@ -11,8 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from business.generate import DEFAULT_POOLS, Dataset, assemble_dataset  # noqa: E402
-from business.models import Pools  # noqa: E402
+from velmo.business.generate import DEFAULT_POOLS, Dataset, assemble_dataset  # noqa: E402
+from velmo.business.models import Pools  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def _build_llm(settings):
 def generate_pools(settings=None) -> Pools:
     """Un appel LLM pour des pools riches ; fallback statique sur échec."""
     if settings is None:
-        from memory.config import load_settings
+        from velmo.config import load_settings
         settings = load_settings()
     try:
         llm = _build_llm(settings)
@@ -64,7 +64,7 @@ def generate_pools(settings=None) -> Pools:
 
 
 def insert_dataset(ds: Dataset, db=None) -> None:
-    from memory.database import get_db
+    from velmo.memory.database import get_db
     db = db or get_db()
     conn = db.connect()
     with conn.cursor() as cur:

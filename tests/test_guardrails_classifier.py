@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from guardrails.classifier import KimiClassifier
+from velmo.guardrails.classifier import KimiClassifier
 
 
 def _make_classifier_with_mock(return_content=None, raise_exc=None):

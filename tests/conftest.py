@@ -1,5 +1,1 @@
-import sys
-from pathlib import Path
-
-# Add the parent directory to sys.path so imports work
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Le package velmo est installé en editable (uv sync) — pas de hack sys.path.

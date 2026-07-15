@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock, patch
-from guardrails.manager import GuardrailManager
+from velmo.guardrails.manager import GuardrailManager
 
 
 def _manager_with_category(category):
@@ -8,7 +8,7 @@ def _manager_with_category(category):
     return GuardrailManager(classifier=clf)
 
 
-@patch("guardrails.manager.write_log")
+@patch("velmo.guardrails.manager.write_log")
 def test_manager_check_input_logs_and_returns(mock_log):
     mgr = _manager_with_category("hate")
     d = mgr.check_input("Sale race.", "u-1")
@@ -18,7 +18,7 @@ def test_manager_check_input_logs_and_returns(mock_log):
     assert mock_log.call_args.args[0] == "u-1"
 
 
-@patch("guardrails.manager.write_log")
+@patch("velmo.guardrails.manager.write_log")
 def test_manager_check_output_blocks_pii(mock_log):
     mgr = _manager_with_category("legitimate")
     d = mgr.check_output("Carte 4111 1111 1111 1111.", "u-1")

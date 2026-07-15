@@ -6,7 +6,7 @@ import unicodedata
 from typing import Any
 from langchain_openai import AzureChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from memory import get_db, VelmoMemoryManager, load_settings
+from velmo.memory import get_db, VelmoMemoryManager, load_settings
 
 def normalize_text(text: str) -> str:
     """Normalize unicode to strip accents and convert to lowercase for robust matching."""

@@ -22,8 +22,11 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["agent*", "memory*", "guardrails*", "eval*", "observability*"]
+where = ["src"]
+include = ["velmo*"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "scripts"]
 
 [dependency-groups]
 dev = [

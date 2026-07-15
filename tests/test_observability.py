@@ -3,8 +3,8 @@
 These tests force the disabled state via monkeypatch so they pass regardless
 of the ambient .env (tracing may be enabled on the developer machine).
 """
-import observability.tracing as tracing
-from observability import trace_run
+import velmo.observability.tracing as tracing
+from velmo.observability import trace_run
 
 
 def test_is_enabled_returns_bool():

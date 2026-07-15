@@ -1,6 +1,6 @@
 """Velmo 2.0 Agent — Interactive REPL for conversational testing."""
 import click
-from agent.agent import VelmoAgent
+from velmo.agent.agent import VelmoAgent
 
 
 @click.command()

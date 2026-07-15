@@ -1,7 +1,7 @@
 # tests/test_agent_e2e_guardrails.py
 import json
 import pytest
-from agent.agent import VelmoAgent
+from velmo.agent.agent import VelmoAgent
 from unittest.mock import MagicMock
 from langchain_core.messages import AIMessage
 
@@ -16,7 +16,7 @@ def load_guardrail_cases(path="eval/guardrail_cases.jsonl"):
 @pytest.mark.parametrize("case", load_guardrail_cases())
 def test_guardrail_case(case):
     """Test each guardrail case matches expected_action."""
-    from guardrails.classifier import KimiClassifier
+    from velmo.guardrails.classifier import KimiClassifier
 
     classifier = MagicMock(spec=KimiClassifier)
 
@@ -83,7 +83,7 @@ def test_guardrail_case(case):
 
 def test_guardrail_stats():
     """Summary stats on guardrail cases."""
-    from guardrails.classifier import KimiClassifier
+    from velmo.guardrails.classifier import KimiClassifier
 
     classifier = MagicMock(spec=KimiClassifier)
 

@@ -1,7 +1,7 @@
 import json
 import logging
-from guardrails.input_guard import check_input
-from guardrails.output_guard import check_output
+from velmo.guardrails.input_guard import check_input
+from velmo.guardrails.output_guard import check_output
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,6 +49,6 @@ def run_eval(path: str, classifier) -> dict:
 
 
 if __name__ == "__main__":
-    from guardrails.classifier import KimiClassifier
+    from velmo.guardrails.classifier import KimiClassifier
     results = run_eval("eval/guardrail_cases.jsonl", KimiClassifier())
     logger.info(f"Résultats garde-fous : {results}")

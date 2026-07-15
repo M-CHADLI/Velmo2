@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock
-from guardrails.input_guard import check_input
+from velmo.guardrails.input_guard import check_input
 
 
 def _classifier(category):

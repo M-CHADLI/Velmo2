@@ -1,4 +1,4 @@
-from guardrails.schema import GuardDecision, SAFE_MESSAGE, FORBIDDEN_INPUT_CATEGORIES
+from velmo.guardrails.schema import GuardDecision, SAFE_MESSAGE, FORBIDDEN_INPUT_CATEGORIES
 
 
 def test_guard_decision_defaults():

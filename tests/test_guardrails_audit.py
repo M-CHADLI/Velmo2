@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
-from guardrails.audit import write_log
-from guardrails.schema import GuardDecision
+from velmo.guardrails.audit import write_log
+from velmo.guardrails.schema import GuardDecision
 
 
 def _fake_db():

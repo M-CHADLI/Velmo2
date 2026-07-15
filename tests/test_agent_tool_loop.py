@@ -1,5 +1,5 @@
 from langchain_core.messages import AIMessage
-from agent.agent import VelmoAgent, MAX_TOOL_ITERS
+from velmo.agent.agent import VelmoAgent, MAX_TOOL_ITERS
 
 
 class StubToolLLM:
@@ -25,7 +25,7 @@ def _agent_with(stub):
 
 
 def test_tool_loop_executes_tool_then_returns_final(monkeypatch):
-    import business.tools as bt
+    import velmo.business.tools as bt
     # exécuter le vrai outil lookup_order avec le repository mocké
     monkeypatch.setattr(bt.repo, "get_order_by_number",
                         lambda n, db=None: {"order_number": n, "status": "expédiée",
@@ -50,7 +50,7 @@ def test_tool_loop_is_bounded():
                             tool_calls=[{"name": "lookup_order",
                                          "args": {"order_number": "CMD-1"},
                                          "id": "c"}])
-    import business.tools as bt
+    import velmo.business.tools as bt
     bt_repo_backup = bt.repo.get_order_by_number
     try:
         bt.repo.get_order_by_number = lambda n, db=None: None

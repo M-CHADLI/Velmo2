@@ -5,7 +5,7 @@ Usage:
     uv run python scripts/reset_db.py demo_user  # vide uniquement cet user_id
 """
 import sys
-from memory import get_db
+from velmo.memory import get_db
 
 TABLES = ["facts", "guardrail_log", "audit_log", "extraction_metadata"]
 

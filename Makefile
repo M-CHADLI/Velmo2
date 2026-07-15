@@ -44,7 +44,7 @@ docker-down:
 
 db-init:
 	@echo "$(GREEN)Initializing database schema...$(NC)"
-	python -c "from memory import get_db; db = get_db(); db.init_db(); print('$(GREEN)✓ Database initialized$(NC)')"
+	uv run python -c "from velmo.memory import get_db; db = get_db(); db.init_db(); print('$(GREEN)✓ Database initialized$(NC)')"
 
 streamlit:
 	@echo "$(GREEN)Starting Streamlit chat app...$(NC)"

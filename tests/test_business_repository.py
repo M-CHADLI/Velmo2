@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock
-from business import repository as repo
+from velmo.business import repository as repo
 
 
 def _db_with(fetchone_seq, fetchall_seq):
