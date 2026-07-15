@@ -1,73 +1,46 @@
-# Velmo 2.0 Streamlit Chat Interface
+# Velmo Streamlit Chat Interface
 
-Simple web chat interface to talk to Velmo support agent.
+Web chat interface to interact with Velmo customer support agent.
 
-## Setup
+## Launch
+
+From the repository root:
 
 ```bash
-# Install dependencies
-pip install -e .
+make streamlit
+```
 
-# Start Docker services
-docker-compose up -d
+Or manually:
 
-# Initialize database
-python -c "from memory import get_db; get_db().init_db()"
-
-# Run Streamlit app
-streamlit run streamlit/app_streamlit.py
+```bash
+uv run streamlit run apps/streamlit/app_streamlit.py
 ```
 
 Open http://localhost:8501
 
-## Architecture
+## Prerequisites
 
-```
-user input
-  ↓
-[input guardrails] - check for harmful/injection/secrets
-  ↓
-[memory] - record user message + retrieve context
-  ↓
-[LLM: Kimi 2.6] - generate response
-  ↓
-[output guardrails] - check for PII/compliance
-  ↓
-[memory] - record assistant response
-  ↓
-display to user
-```
+- Run `make setup` from the repository root to initialize:
+  - `uv sync` — install all dependencies
+  - Docker PostgreSQL and Redis services
+  - Database initialization
+- `.env` file must be configured (see `.env.example`)
 
-## Features
+## Project Structure
 
-- ✅ Real-time chat with Velmo
-- ✅ Full safety pipeline (input + output guardrails)
-- ✅ Memory integration (facts extraction + retrieval)
-- ✅ Message history in session
-- ✅ Error handling + graceful fallbacks
+- `app_streamlit.py` — Application entry point
+- `components/` — Reusable UI components
+  - `chat_handler` — Chat message processing
+  - `database_viewer` — Database query interface
+- `utils/` — Utility modules
+  - `session_manager` — Streamlit session state management
 
 ## Configuration
 
-Set in `.env`:
-- `DATABASE_URL`: PostgreSQL connection
-- `AZURE_OPENAI_API_KEY`: Kimi 2.6 key
-- `AZURE_OPENAI_ENDPOINT`: Azure endpoint
+Set the following in `.env`:
+- `DATABASE_URL` — PostgreSQL connection string
+- `AZURE_OPENAI_API_KEY` — Azure OpenAI API key
+- `AZURE_OPENAI_ENDPOINT` — Azure OpenAI endpoint
+- `REDIS_URL` — Redis connection (optional, for caching)
 
-See `.env.example` for full list.
-
-## Troubleshooting
-
-**"Database connection error":**
-```bash
-docker-compose up -d
-```
-
-**"Module not found":**
-```bash
-pip install -e .
-```
-
-**"Streamlit not found":**
-```bash
-pip install streamlit>=1.28.0
-```
+See `.env.example` for complete configuration list.

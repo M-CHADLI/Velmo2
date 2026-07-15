@@ -6,13 +6,9 @@ Usage:
 import argparse
 import json
 import logging
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from velmo.business.generate import DEFAULT_POOLS, Dataset, assemble_dataset  # noqa: E402
-from velmo.business.models import Pools  # noqa: E402
+from velmo.business.generate import DEFAULT_POOLS, Dataset, assemble_dataset
+from velmo.business.models import Pools
 
 logger = logging.getLogger(__name__)
 
