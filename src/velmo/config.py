@@ -53,6 +53,11 @@ class Settings:
             "LANGSMITH_ENDPOINT", "https://api.smith.langchain.com"
         )
 
+        # Twilio SMS config
+        self.twilio_account_sid: str = os.getenv("TWILIO_ACCOUNT_SID", "")
+        self.twilio_auth_token: str = os.getenv("TWILIO_AUTH_TOKEN", "")
+        self.twilio_phone_number: str = os.getenv("TWILIO_PHONE_NUMBER", "")
+
         # Embedding config
         self.embedding_model: str = os.getenv(
             "EMBEDDING_MODEL", "text-embedding-3-small"
