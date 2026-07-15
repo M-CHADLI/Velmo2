@@ -6,7 +6,8 @@ import logging
 import asyncio
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Composants locaux de l'app (components/, utils/) — le package velmo, lui,
+# est installé en editable et n'a besoin d'aucun hack.
 sys.path.insert(0, str(Path(__file__).parent))
 
 from velmo.config import load_settings

@@ -49,7 +49,7 @@ db-init:
 streamlit:
 	@echo "$(GREEN)Starting Streamlit chat app...$(NC)"
 	@echo "$(YELLOW)Opening browser at http://localhost:8501$(NC)"
-	streamlit run streamlit/app_streamlit.py
+	uv run streamlit run apps/streamlit/app_streamlit.py
 
 test:
 	@echo "$(GREEN)Running tests...$(NC)"
