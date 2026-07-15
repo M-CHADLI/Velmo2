@@ -23,6 +23,11 @@ def get_discovered_email() -> str | None:
     return _identity.get("email")
 
 
+def _remember_email(email: str) -> None:
+    """Mémorise l'email découvert pendant la requête (voir note _identity)."""
+    _identity["email"] = email
+
+
 def _format_order(o: dict) -> str:
     lines = [f"Commande {o['order_number']} — statut : {o['status']} — "
              f"total : {o['total_eur']:.2f} €"]
@@ -67,7 +72,7 @@ def get_customer_orders(email: str | None = None) -> str:
         if email:
             customer = repo.get_customer_by_email(email)
             if customer:
-                _identity["email"] = email
+                _remember_email(email)
         else:
             user_id = _identity.get("user_id")
             # Try customer_ref first (e.g., CLI-000001)

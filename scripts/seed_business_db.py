@@ -39,10 +39,10 @@ def _build_llm(settings):
 
 def generate_pools(settings=None) -> Pools:
     """Un appel LLM pour des pools riches ; fallback statique sur échec."""
-    if settings is None:
-        from velmo.config import load_settings
-        settings = load_settings()
     try:
+        if settings is None:
+            from velmo.config import load_settings
+            settings = load_settings()
         llm = _build_llm(settings)
         resp = llm.invoke(POOLS_PROMPT)
         content = resp.content if hasattr(resp, "content") else str(resp)

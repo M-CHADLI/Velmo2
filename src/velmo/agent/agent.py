@@ -12,6 +12,11 @@ from velmo.business.tools import TOOLS, set_business_identity, get_discovered_em
 
 MAX_TOOL_ITERS = 3
 
+FALLBACK_MESSAGE = (
+    "Je n'ai pas pu terminer le traitement de votre demande. "
+    "Pouvez-vous reformuler ou préciser ?"
+)
+
 
 class VelmoAgent:
     """Orchestrator: memory + guardrails + DeepSeek LLM."""
@@ -71,7 +76,8 @@ class VelmoAgent:
             for call in tool_calls:
                 result = self._execute_tool(call)
                 messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
-        return ai.content if ai is not None and hasattr(ai, "content") else ""
+        content = ai.content if ai is not None and hasattr(ai, "content") else ""
+        return content if content else FALLBACK_MESSAGE
 
     def process_message(self, user_id: str, message: str) -> VelmoResponse:
         """Process message end-to-end: input -> memory -> deepseek -> output -> store."""

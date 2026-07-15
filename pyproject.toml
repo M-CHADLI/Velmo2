@@ -27,10 +27,12 @@ include = ["velmo*"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "scripts", "apps/streamlit"]
+asyncio_mode = "auto"
 
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
     "black>=24.0.0",
     "ruff>=0.2.0",
 ]

@@ -1,5 +1,6 @@
+import pytest
 from langchain_core.messages import AIMessage
-from velmo.agent.agent import VelmoAgent, MAX_TOOL_ITERS
+from velmo.agent.agent import VelmoAgent, MAX_TOOL_ITERS, FALLBACK_MESSAGE
 
 
 class StubToolLLM:
@@ -73,3 +74,46 @@ def test_generate_with_tools_falls_back_without_bind_tools():
     from langchain_core.messages import HumanMessage
     out = agent._generate_with_tools([HumanMessage(content="bonjour")])
     assert out == "réponse simple"
+
+
+class AlwaysToolLLM:
+    """LLM factice qui demande toujours un outil (content vide) -> épuise MAX_TOOL_ITERS."""
+    def __init__(self):
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    def invoke(self, messages, config=None):
+        self.calls += 1
+        return AIMessage(content="", tool_calls=[{"name": "lookup_order",
+                                                   "args": {"order_number": "CMD-1"},
+                                                   "id": f"c{self.calls}"}])
+
+
+class _StubResponse:
+    def __init__(self, message):
+        self.message = message
+
+
+@pytest.fixture
+def agent_with_looping_tool(monkeypatch):
+    import velmo.business.tools as bt
+    from langchain_core.messages import HumanMessage
+    monkeypatch.setattr(bt.repo, "get_order_by_number", lambda n, db=None: None)
+    agent = _agent_with(AlwaysToolLLM())
+
+    def fake_process_message(self, user_id, message):
+        content = self._generate_with_tools([HumanMessage(content=message)])
+        return _StubResponse(content)
+
+    monkeypatch.setattr(VelmoAgent, "process_message", fake_process_message)
+    return agent
+
+
+def test_tool_loop_exhaustion_returns_fallback_message(agent_with_looping_tool):
+    """Si MAX_TOOL_ITERS est épuisé avec des tool_calls encore présents,
+    la réponse ne doit jamais être vide."""
+    response = agent_with_looping_tool.process_message("CLI-000001", "boucle")
+    assert response.message == FALLBACK_MESSAGE
+    assert response.message != ""
