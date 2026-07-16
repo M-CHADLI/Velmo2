@@ -41,6 +41,19 @@ def test_get_customer_by_velmo_user():
     assert out["customer_id"] == "c1"
 
 
+def test_get_customer_by_phone():
+    db, cur = _db_with([{"customer_id": "c1", "full_name": "Alice Dupont",
+                         "email": "alice.dupont@example.fr", "phone": "+33612345678"}], [])
+    out = repo.get_customer_by_phone("+33612345678", db=db)
+    assert out["customer_id"] == "c1"
+    assert out["phone"] == "+33612345678"
+
+
+def test_get_customer_by_phone_not_found_returns_none():
+    db, cur = _db_with([None], [])
+    assert repo.get_customer_by_phone("+33699999999", db=db) is None
+
+
 def test_get_orders_for_customer_lists_orders():
     orders = [{"order_number": "CMD-0001", "status": "livrée",
                "total_eur": 19.9, "placed_at": "2026-01-01"}]

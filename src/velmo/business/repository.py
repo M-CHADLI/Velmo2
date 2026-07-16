@@ -53,6 +53,17 @@ def get_customer_by_email(email: str, db=None) -> dict | None:
     return dict(row) if row else None
 
 
+def get_customer_by_phone(phone: str, db=None) -> dict | None:
+    conn = _conn(db)
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT customer_id, full_name, email, phone FROM customers WHERE phone = %s",
+            (phone,),
+        )
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
 def get_customer_by_velmo_user(user_id: str, db=None) -> dict | None:
     if not user_id:
         return None
