@@ -1,3 +1,5 @@
+import re
+
 from velmo.business.generate import (
     assemble_dataset, customer_ref, order_number, DEFAULT_POOLS,
 )
@@ -80,3 +82,9 @@ def test_assemble_is_deterministic():
     assert [c["customer_id"] for c in ds1.customers] == [c["customer_id"] for c in ds2.customers]
     assert [o["order_id"] for o in ds1.orders] == [o["order_id"] for o in ds2.orders]
     assert [p["sku"] for p in ds1.products] == [p["sku"] for p in ds2.products]
+
+
+def test_customer_phone_is_e164():
+    ds = assemble_dataset(DEFAULT_POOLS, n_customers=5, seed=1)
+    for c in ds.customers:
+        assert re.match(r"^\+33\d{9}$", c["phone"]), f"Invalid E.164: {c['phone']}"

@@ -100,7 +100,7 @@ def _build_customers(pools: Pools, rng: random.Random, n: int, demo_user_id: str
             "customer_ref": customer_ref(idx + 1),
             "full_name": f"{first} {last}",
             "email": _slug_email(first, last, emails),
-            "phone": "0" + "".join(rng.choices(string.digits, k=9)),
+            "phone": "+336" + "".join(rng.choices(string.digits, k=8)),
             "address_line": f"{rng.randint(1, 200)} rue {rng.choice(pools.last_names)}",
             "city": city.city,
             "zip": city.zip,
