@@ -5,16 +5,59 @@ Projet d'exercice au niveau d'exigence « produit » : structure `src/` standard
 
 ## Démarrage rapide
 
+### Prérequis
+- Python ≥ 3.11
+- [uv](https://docs.astral.sh/uv/) (gestionnaire de dépendances)
+- Docker Desktop (PostgreSQL + Redis)
+
+### Installation et lancement (5 min)
+
 ```bash
+# 1. Clone + cd
 git clone https://github.com/M-CHADLI/Velmo2.git
 cd Velmo2
-make setup        # uv sync + docker-compose up + init DB
-make streamlit    # http://localhost:8501
+
+# 2. Setup complet (install deps + BD + seed data)
+make setup
+
+# 3. Lancer l'interface Streamlit
+make streamlit
+# → http://localhost:8501
 ```
 
-Prérequis : Python ≥ 3.11, [uv](https://docs.astral.sh/uv/), Docker Desktop.
+### Setup détaillé (étape par étape)
 
-Configuration : copier `.env.example` vers `.env` et renseigner les clés (Azure OpenAI, LangSmith).
+```bash
+# 1. Lancer PostgreSQL + Redis en Docker
+docker-compose up -d
+
+# 2. Installer les dépendances
+UV_LINK_MODE=copy uv sync
+
+# 3. Initialiser la base de données
+uv run python -c "from velmo.memory import get_db; db = get_db(); db.init_db()"
+
+# 4. Seeder avec données fictives (1000 clients e-commerce)
+uv run python scripts/seed_business_db.py
+
+# 5. Vérifier les tests (doit afficher ~110 tests passing)
+uv run pytest tests/ -v
+
+# 6. Lancer Streamlit (UI web) — port 8501
+make streamlit
+
+# OU lancer le CLI (chat en terminal)
+uv run python scripts/velmo_cli.py
+```
+
+### Configuration
+
+Copier `.env.example` vers `.env` et renseigner les clés :
+- `AZURE_OPENAI_API_KEY` — clé Azure OpenAI
+- `AZURE_OPENAI_ENDPOINT` — endpoint Azure
+- `AZURE_OPENAI_DEPLOYMENT_NAME` — nom du déploiement (ex: `gpt-5.4-mini`)
+- `DATABASE_URL` — URL PostgreSQL (default: `postgresql://postgres:postgres@localhost:5432/velmo`)
+- (optionnel) `LANGSMITH_TRACING=true` + `LANGSMITH_API_KEY` pour observability
 
 ## Structure
 
