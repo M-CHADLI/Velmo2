@@ -72,7 +72,7 @@ def get_customer_by_velmo_user(user_id: str, db=None) -> dict | None:
     conn = _conn(db)
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT customer_id, full_name, email FROM customers "
+            "SELECT customer_id, full_name, email, phone FROM customers "
             "WHERE velmo_user_id = %s LIMIT 1",
             (user_id,),
         )
@@ -86,7 +86,7 @@ def get_customer_by_customer_ref(customer_ref: str, db=None) -> dict | None:
     conn = _conn(db)
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT customer_id, full_name, email, customer_ref FROM customers "
+            "SELECT customer_id, full_name, email, phone, customer_ref FROM customers "
             "WHERE customer_ref = %s LIMIT 1",
             (customer_ref,),
         )
