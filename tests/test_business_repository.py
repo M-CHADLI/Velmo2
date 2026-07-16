@@ -54,6 +54,14 @@ def test_get_customer_by_phone_not_found_returns_none():
     assert repo.get_customer_by_phone("+33699999999", db=db) is None
 
 
+def test_get_customer_by_phone_with_none_returns_none():
+    assert repo.get_customer_by_phone(None) is None
+
+
+def test_get_customer_by_phone_with_empty_string_returns_none():
+    assert repo.get_customer_by_phone("") is None
+
+
 def test_get_orders_for_customer_lists_orders():
     orders = [{"order_number": "CMD-0001", "status": "livrée",
                "total_eur": 19.9, "placed_at": "2026-01-01"}]

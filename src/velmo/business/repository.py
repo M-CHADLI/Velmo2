@@ -54,6 +54,8 @@ def get_customer_by_email(email: str, db=None) -> dict | None:
 
 
 def get_customer_by_phone(phone: str, db=None) -> dict | None:
+    if not phone:
+        return None
     conn = _conn(db)
     with conn.cursor() as cur:
         cur.execute(
