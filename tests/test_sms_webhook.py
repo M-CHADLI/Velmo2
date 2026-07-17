@@ -26,7 +26,14 @@ def test_recognized_number_returns_agent_reply():
         patch.object(
             main,
             "get_customer_by_phone",
-            return_value={"customer_id": "c-1", "velmo_user_id": "u-1"},
+            return_value={
+                "customer_id": "c-1",
+                "customer_ref": "CLI-1",
+                "velmo_user_id": "u-1",
+                "full_name": "Alice",
+                "email": "alice@example.com",
+                "phone": "+33600000000",
+            },
         ),
         patch.object(
             main.sms_channel, "receive_message", return_value="Bonjour, comment aider ?"
@@ -60,7 +67,14 @@ def test_recognized_number_falls_back_to_customer_ref():
         patch.object(
             main,
             "get_customer_by_phone",
-            return_value={"customer_id": "c-2", "customer_ref": "CLI-42"},
+            return_value={
+                "customer_id": "c-2",
+                "customer_ref": "CLI-42",
+                "velmo_user_id": None,
+                "full_name": "Bob",
+                "email": "bob@example.com",
+                "phone": "+33600000001",
+            },
         ),
         patch.object(main.sms_channel, "receive_message", return_value="ok") as mock_recv,
     ):

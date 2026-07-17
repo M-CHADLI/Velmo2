@@ -59,7 +59,7 @@ def get_customer_by_phone(phone: str, db=None) -> dict | None:
     conn = _conn(db)
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT customer_id, full_name, email, phone FROM customers WHERE phone = %s",
+            "SELECT customer_id, customer_ref, velmo_user_id, full_name, email, phone FROM customers WHERE phone = %s",
             (phone,),
         )
         row = cur.fetchone()
