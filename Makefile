@@ -1,4 +1,4 @@
-.PHONY: help install lint format test clean run streamlit db-init docker-up docker-down
+.PHONY: help install lint format test clean run streamlit sms-server db-init docker-up docker-down
 
 # Colors for output
 GREEN := \033[0;32m
@@ -17,6 +17,7 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Development:$(NC)"
 	@echo "  make streamlit        Run Streamlit chat app (http://localhost:8501)"
+	@echo "  make sms-server       Start SMS webhook server (http://localhost:8000)"
 	@echo "  make test             Run pytest tests"
 	@echo "  make lint             Run ruff linter"
 	@echo "  make format           Format code with black"
@@ -50,6 +51,11 @@ streamlit:
 	@echo "$(GREEN)Starting Streamlit chat app...$(NC)"
 	@echo "$(YELLOW)Opening browser at http://localhost:8501$(NC)"
 	uv run streamlit run apps/streamlit/app_streamlit.py
+
+sms-server:
+	@echo "$(GREEN)Starting SMS webhook server...$(NC)"
+	@echo "$(YELLOW)Server available at http://localhost:8000$(NC)"
+	uv run uvicorn apps.sms_server.main:app --reload --port 8000
 
 test:
 	@echo "$(GREEN)Running tests...$(NC)"

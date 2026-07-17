@@ -100,6 +100,21 @@ uv run python scripts/velmo_cli.py          # chat en terminal
 - **Base fictive** : 50 clients e-commerce générés (fixture de démo — remplacerait une
   vraie base client en production).
 
+## Canal SMS (Twilio)
+
+En plus de Streamlit, Velmo2 expose un canal SMS via Twilio.
+
+### Setup
+
+1. Créer un compte [Twilio](https://www.twilio.com/), récupérer Account SID, Auth Token, et un numéro Twilio.
+2. Renseigner dans `.env` : `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`.
+3. Lancer le serveur : `make sms-server` (http://localhost:8000).
+4. En dev local, exposer publiquement avec [ngrok](https://ngrok.com/) : `ngrok http 8000`.
+5. Dans la console Twilio, configurer le webhook du numéro SMS sur `https://<ngrok-url>/sms/webhook` (méthode POST).
+6. Le lookup client se fait par numéro de téléphone (colonne `phone` de `customers`, générée en format E.164 par le seed).
+
+En production, remplacer l'URL ngrok par l'URL stable du serveur déployé — aucun changement de code nécessaire.
+
 ## CI
 
 GitHub Actions à chaque push : `ruff check` + `pytest` contre un PostgreSQL/pgvector
