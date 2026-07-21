@@ -1,3 +1,5 @@
+[📖 Documentation](README.md) › Le brief (énoncé)
+
 # Brief de création : Velmo 2.0 — reconstruire l'agent de zéro (mémoire, garde-fous & MLOps)
 
 **Pratique — conception & création**, démarche guidée + tests d'acceptance fournis · trois chantiers regroupés : mémoire, garde-fous, évaluation & MLOps.
@@ -182,3 +184,7 @@ Travail en équipe de 2 à 3. 5 jours (35h). Présentiel. Le brief se déroule e
 | CT4 | Mettre en œuvre une démarche méthodique de résolution | 2 |
 | CT5 | Partager la solution (documentation) | 2 |
 | CT8 | Interagir dans un contexte professionnel | 2 |
+
+---
+
+⬆ [Retour à l'index](README.md)
