@@ -4,9 +4,10 @@ import time
 import sys
 import unicodedata
 from typing import Any
-from langchain_openai import AzureChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from velmo.memory import get_db, VelmoMemoryManager, load_settings
+from velmo.memory import get_db, VelmoMemoryManager
+from velmo.config import load_settings
 
 def normalize_text(text: str) -> str:
     """Normalize unicode to strip accents and convert to lowercase for robust matching."""
@@ -41,20 +42,20 @@ def run_llm_query(manager: VelmoMemoryManager, user_id: str, question: str) -> s
     """Query Kimi 2.6 using short-term history and retrieved long-term facts."""
     settings = load_settings()
 
-    # Instantiate AzureChatOpenAI
-    llm = AzureChatOpenAI(
-        azure_deployment=settings.azure_openai_deployment_name,
-        azure_endpoint=settings.azure_openai_endpoint,
+    # Même client que VelmoAgent : endpoint OpenAI-compatible via base_url.
+    # (AzureChatOpenAI + azure_endpoint produisait une URL malformée -> 404.)
+    llm = ChatOpenAI(
+        model=settings.azure_openai_deployment_name,
         api_key=settings.azure_openai_api_key,
-        api_version=settings.azure_openai_api_version,
+        base_url=settings.azure_openai_endpoint,
         temperature=0.0,
     )
 
     # 1. Retrieve long-term context
     lt_context = manager.get_conversation_context(user_id, question, k=3)
 
-    # 2. Retrieve short-term history
-    st_history_str = manager.short_term.format_history_string()
+    # 2. Retrieve short-term history (fenêtre glissante propre à cet utilisateur)
+    st_history_str = manager._get_user_short_term(user_id).format_history_string()
 
     # System prompt combining context and short-term
     system_prompt = f"""You are Velmo Support Assistant. Answer the client's question accurately.
@@ -138,7 +139,7 @@ def evaluate_cases(cases_file: str) -> dict[str, Any]:
         if eval_info["type"] == "persistence":
             # For multi-session persistence, clear short-term memory to force loading from database
             print("  -> Simulating new session: clearing short-term memory")
-            manager.short_term.clear()
+            manager._get_user_short_term(user_id).clear()
 
         # 4. Run retrieval and LLM completion
         question = eval_info["question"]

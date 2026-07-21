@@ -53,10 +53,18 @@ class Settings:
             "LANGSMITH_ENDPOINT", "https://api.smith.langchain.com"
         )
 
-        # Twilio SMS config
+        # OVH SMS config
+        self.ovh_consumer_key: str = os.getenv("OVH_CONSUMER_KEY", "")
+        self.ovh_service_name: str = os.getenv("OVH_SERVICE_NAME", "")
+        self.ovh_sender: str = os.getenv("OVH_SENDER", "Velmo2")
+        self.ovh_app_key: str = os.getenv("OVH_APP_KEY", "")
+        self.ovh_app_secret: str = os.getenv("OVH_APP_SECRET", "")
+
+        # Twilio WhatsApp config
         self.twilio_account_sid: str = os.getenv("TWILIO_ACCOUNT_SID", "")
         self.twilio_auth_token: str = os.getenv("TWILIO_AUTH_TOKEN", "")
-        self.twilio_phone_number: str = os.getenv("TWILIO_PHONE_NUMBER", "")
+        self.twilio_whatsapp_number: str = os.getenv("TWILIO_WHATSAPP_NUMBER", "")
+
 
         # Embedding config
         self.embedding_model: str = os.getenv(

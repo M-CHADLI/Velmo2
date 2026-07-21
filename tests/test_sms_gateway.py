@@ -65,12 +65,13 @@ def test_send_message_twilio_exception_returns_false():
 
 def test_lookup_phone_by_customer_ref():
     channel, _, _ = _make_channel()
-    with patch(
-        "velmo.business.repository.get_customer_by_customer_ref",
-        return_value={"phone": "+33611111111"},
-    ) as mock_ref, patch(
-        "velmo.business.repository.get_customer_by_velmo_user"
-    ) as mock_velmo:
+    with (
+        patch(
+            "velmo.business.repository.get_customer_by_customer_ref",
+            return_value={"phone": "+33611111111"},
+        ) as mock_ref,
+        patch("velmo.business.repository.get_customer_by_velmo_user") as mock_velmo,
+    ):
         phone = channel._lookup_phone_for_user("CLI-99")
 
     assert phone == "+33611111111"

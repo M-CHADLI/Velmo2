@@ -1,4 +1,4 @@
-.PHONY: help install lint format test clean run streamlit sms-server db-init docker-up docker-down
+.PHONY: help install lint format test clean run streamlit sms-server db-init docker-up docker-down eval-memory eval-guardrails eval-quality quality
 
 # Colors for output
 GREEN := \033[0;32m
@@ -22,6 +22,12 @@ help:
 	@echo "  make lint             Run ruff linter"
 	@echo "  make format           Format code with black"
 	@echo "  make clean            Remove Python cache files"
+	@echo ""
+	@echo "$(YELLOW)Boucle qualité (Chantier 3 - Évaluation & MLOps):$(NC)"
+	@echo "  make eval-memory      Évalue la mémoire seule"
+	@echo "  make eval-guardrails  Évalue les garde-fous seuls"
+	@echo "  make eval-quality     Évalue la qualité générale seule"
+	@echo "  make quality          Lance les 3 suites + note globale + mlops/report.md"
 	@echo ""
 	@echo "$(YELLOW)Full Setup (one command):$(NC)"
 	@echo "  make setup            install + docker-up + db-init"
@@ -115,6 +121,14 @@ eval-memory:
 eval-guardrails:
 	@echo "$(GREEN)Running guardrails evaluation...$(NC)"
 	uv run python scripts/eval_guardrails.py
+
+eval-quality:
+	@echo "$(GREEN)Running quality evaluation...$(NC)"
+	uv run python scripts/eval_quality.py
+
+quality:
+	@echo "$(GREEN)Running full quality loop (memory + guardrails + quality)...$(NC)"
+	uv run python mlops/run_eval.py
 
 # Status commands
 status:

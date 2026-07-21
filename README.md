@@ -115,10 +115,44 @@ En plus de Streamlit, Velmo2 expose un canal SMS via Twilio.
 
 En production, remplacer l'URL ngrok par l'URL stable du serveur déployé — aucun changement de code nécessaire.
 
+## Boucle qualité (Chantier 3 — Évaluation & MLOps)
+
+Pour prouver que l'agent ne régresse pas d'une version à l'autre, trois suites
+d'évaluation rejouent des jeux de cas et produisent une **note globale sur 100** :
+
+| Suite | Jeu de cas | Ce qu'elle mesure |
+|---|---|---|
+| Mémoire | `eval/memory_cases.jsonl` | L'agent se souvient-il (fil long, multi-session, oubli) ? |
+| Garde-fous | `eval/guardrail_cases.jsonl` | % de cas bien traités + taux de blocage et de faux positifs |
+| Qualité | `eval/quality_cases.jsonl` | L'agent répond-il correctement aux questions support courantes ? |
+
+**Lancer l'évaluation complète :**
+
+```bash
+make quality          # = uv run python mlops/run_eval.py
+```
+
+Le script :
+1. lance les 3 suites et calcule la note globale (pondération 40 % mémoire /
+   40 % garde-fous / 20 % qualité, seuil de livraison à 70/100) ;
+2. écrit un rapport lisible dans `mlops/report.md` (note globale, note par suite,
+   taux de blocage, taux de faux positifs, latence moyenne, coût estimé) ;
+3. ajoute une ligne horodatée à `mlops/scores/history.jsonl` (suivi de la note
+   dans le temps) ;
+4. **retourne un code d'erreur si la note passe sous le seuil** → c'est ce qui
+   bloque la livraison.
+
+> Un garde-fou retiré ou la mémoire désactivée font chuter la note sous le seuil :
+> `make quality` échoue alors avec le code de sortie 1, empêchant la livraison.
+
 ## CI
 
-GitHub Actions à chaque push : `ruff check` + `pytest` contre un PostgreSQL/pgvector
-en service container. Voir `.github/workflows/ci.yml`.
+- `.github/workflows/ci.yml` — à chaque push : `ruff check` + `pytest` contre un
+  PostgreSQL/pgvector en service container. Rapide, gratuit (LLM mocké).
+- `.github/workflows/quality.yml` — la boucle qualité ci-dessus. Déclenchée
+  **manuellement** (onglet Actions → « Run workflow ») car elle appelle le vrai
+  LLM Azure. Nécessite les secrets `AZURE_OPENAI_*` dans les réglages du repo.
+  Bloque si la note globale est sous le seuil et publie `mlops/report.md` en artifact.
 
 ## Licence
 

@@ -4,7 +4,7 @@ import uuid
 import numpy as np
 from datetime import datetime
 from typing import Any, Optional
-from langchain_openai import AzureOpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from ..config import load_settings
 from .database import get_db
 from .schema import FactData, ExtractionMetadata
@@ -18,17 +18,20 @@ class LongTermMemory:
         self.settings = settings or load_settings()
         self.db = db or get_db()
 
-        # Initialize LangChain Azure OpenAI embeddings (text-embedding-3-small via Azure)
+        # Client d'embeddings : on utilise le MÊME endpoint OpenAI-compatible
+        # (/openai/v1) que le modèle de chat (voir VelmoAgent -> ChatOpenAI).
+        # Rester sur ce pattern évite l'URL Azure malformée que produisait
+        # AzureOpenAIEmbeddings avec ce même endpoint. Le modèle d'embedding doit
+        # être déployé sur la ressource Azure (sinon 404 -> fallback mock ci-dessous).
         try:
-            self.embeddings = AzureOpenAIEmbeddings(
+            self.embeddings = OpenAIEmbeddings(
                 model=self.settings.embedding_model,
                 api_key=self.settings.azure_openai_api_key,
-                azure_endpoint=self.settings.azure_openai_endpoint,
-                api_version=self.settings.azure_openai_api_version,
-                dimensions=self.settings.embedding_dimensions
+                base_url=self.settings.azure_openai_endpoint,
+                dimensions=self.settings.embedding_dimensions,
             )
         except Exception as e:
-            logger.warning(f"Could not initialize AzureOpenAIEmbeddings: {e}. Fallback to mock embeddings will be active.")
+            logger.warning(f"Could not initialize OpenAIEmbeddings: {e}. Fallback to mock embeddings will be active.")
             self.embeddings = None
 
     def _get_embedding(self, text: str) -> list[float]:
