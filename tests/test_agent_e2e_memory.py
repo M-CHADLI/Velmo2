@@ -66,23 +66,47 @@ def test_memory_isolation():
     assert r_a.memory_context != r_b.memory_context
 
 def test_memory_forget():
-    """Test forget: agent removes data on request."""
+    """Test forget: l'agent supprime réellement le fait sur demande (R5).
+
+    On stocke un fait directement (pour contrôler clé/valeur/contexte), puis on
+    envoie la demande d'oubli via l'agent, et on vérifie que le fait a disparu de
+    la mémoire active — pas seulement que le compteur de tours a bougé.
+    """
+    import uuid
+    from velmo.memory import get_db
+    from velmo.memory.schema import FactData
+
+    get_db().init_db()  # schéma présent (Postgres de CI/dev)
+
     classifier = MagicMock()
     classifier.classify.return_value = "legitimate"
 
     llm = MagicMock()
     bound = MagicMock()
     bound.invoke.side_effect = [
-        MagicMock(content="C'est noté.", tool_calls=None),
         MagicMock(content="C'est supprimé de ma mémoire.", tool_calls=None)
     ]
     llm.bind_tools.return_value = bound
 
     agent = VelmoAgent(classifier=classifier, llm=llm)
+    uid = f"u-forget-{uuid.uuid4().hex[:8]}"
 
-    r1 = agent.process_message("u-501", "Mon numero de commande est 4490.")
-    r2 = agent.process_message("u-501", "En fait, oublie mon numero de commande.")
+    # Fait stocké : un numéro de commande rangé (comme le fait parfois le Judge)
+    # sous la clé 'identifier', avec son contexte d'origine.
+    agent.memory.long_term.store_fact(
+        user_id=uid,
+        conversation_id="conv-forget",
+        fact_data=FactData(
+            key="identifier", value="4490", type="identifier",
+            context="Mon numero de commande est 4490.",
+        ),
+    )
+    assert any(f["value"] == "4490" for f in agent.memory.long_term.inspect_memory(uid))
 
-    # Verify turn counter incremented
-    assert r1.turn_number == 1
-    assert r2.turn_number == 2
+    # Demande d'oubli via l'agent (déclenche la suppression dans record_user_message)
+    r = agent.process_message(uid, "En fait, oublie mon numero de commande.")
+    assert r.turn_number == 1
+
+    # Le fait a réellement disparu de la mémoire active
+    remaining = [f["value"] for f in agent.memory.long_term.inspect_memory(uid)]
+    assert "4490" not in remaining

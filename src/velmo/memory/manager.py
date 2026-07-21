@@ -1,5 +1,6 @@
 import logging
 import time
+import unicodedata
 from typing import Any
 from ..config import load_settings
 from .short_term import SlidingWindowMemory
@@ -7,6 +8,28 @@ from .long_term import LongTermMemory
 from .schema import ExtractionMetadata
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize(text: str) -> str:
+    """Minuscule + suppression des accents, pour des comparaisons robustes."""
+    if not text:
+        return ""
+    nfd = unicodedata.normalize("NFD", text)
+    return "".join(c for c in nfd if unicodedata.category(c) != "Mn").lower()
+
+
+# Mots déclencheurs d'une demande d'oubli (normalisés, sans accent).
+_FORGET_KEYWORDS = ["oublie", "supprime", "efface", "forget", "delete", "remove"]
+
+# Catégories d'oubli : (termes reconnus dans le message, sous-chaînes de clé à cibler).
+# Les « termes » servent aussi à matcher le CONTEXTE d'origine d'un fait.
+_FORGET_CATEGORIES: list[tuple[list[str], list[str]]] = [
+    (["commande", "order"], ["order", "commande", "numero_commande"]),
+    (["adresse", "address", "code postal", "postal", "zip"],
+     ["address", "adresse", "code_postal", "zip"]),
+    (["tutoie", "tutoiement", "preference", "langue", "contact", "canal"],
+     ["contact_method", "preference", "langue", "language", "relation_type", "tutoiement"]),
+]
 
 
 class _JudgeFacade:
@@ -171,25 +194,32 @@ class VelmoMemoryManager:
     def check_and_handle_forget_request(self, user_id: str, content: str) -> bool:
         """Scan user message for GDPR 'forget' commands and delete corresponding facts.
 
-        For example: 'oublie mon numéro de commande' -> soft delete order-related facts.
-        """
-        content_lower = content.lower()
-        forget_keywords = ["oublie", "supprime", "efface", "forget", "delete", "remove"]
+        Ex. : 'oublie mon numéro de commande' -> soft-delete des faits liés à la commande.
 
-        # Check if the user is asking to forget something
-        if not any(kw in content_lower for kw in forget_keywords):
+        Un fait est ciblé s'il correspond à la catégorie demandée par au moins un signal :
+          - sa CLÉ contient un mot-clé de la catégorie (ex. 'address' dans 'address_zip') ;
+          - sa VALEUR est citée explicitement dans le message (ex. 'oublie le 4490') ;
+          - son CONTEXTE d'origine mentionne la catégorie (ex. le fait '4490' vient du
+            message « Mon numéro de commande est 4490 » -> matché par « commande »).
+        Le 3ᵉ signal est déterminant : le Judge range parfois une valeur sous une clé
+        inattendue (ex. un numéro de commande sous 'identifier'), ce qui ferait rater
+        les deux premiers signaux.
+        """
+        norm_content = _normalize(content)
+
+        # 1. Est-ce bien une demande d'oubli ?
+        if not any(kw in norm_content for kw in _FORGET_KEYWORDS):
             return False
 
-        # Identify target categories/keywords to match in facts
-        target_keys = []
-        if any(term in content_lower for term in ["commande", "order", "numéro de commande"]):
-            target_keys.extend(["contract_id", "order_id", "commande", "numero_commande"])
-        if any(term in content_lower for term in ["adresse", "address", "code postal", "postal"]):
-            target_keys.extend(["address", "address_zip", "adresse", "code_postal"])
-        if any(term in content_lower for term in ["tutoyer", "tutoiement", "tutoie", "preference", "pref"]):
-            target_keys.extend(["contact_method", "preference", "langue", "tutoiement"])
+        # 2. Quelles catégories sont visées ? -> mots-clés de clé + termes de contexte.
+        target_keys: list[str] = []
+        target_terms: list[str] = []
+        for terms, keys in _FORGET_CATEGORIES:
+            if any(t in norm_content for t in terms):
+                target_terms.extend(terms)
+                target_keys.extend(keys)
 
-        # Fetch active facts for the user
+        # 3. Récupérer les faits actifs de l'utilisateur.
         try:
             active_facts = self.long_term.inspect_memory(user_id)
         except Exception as e:
@@ -199,27 +229,28 @@ class VelmoMemoryManager:
         if not active_facts:
             return False
 
+        # 4. Cibler et supprimer.
         deleted_any = False
         for fact in active_facts:
-            fact_id = fact["fact_id"]
-            fact_key = fact["key"].lower()
-            fact_val = fact["value"].lower()
+            key = _normalize(fact.get("key") or "")
+            value = _normalize(fact.get("value") or "")
+            context = _normalize(fact.get("context") or "")
 
-            # Match by key type OR if the specific value is mentioned in the forget request
-            key_match = any(tk in fact_key for tk in target_keys)
-            val_match = (fact_val in content_lower) or any(term in content_lower for term in fact_val.split())
+            key_match = bool(target_keys) and any(tk in key for tk in target_keys)
+            value_match = bool(value) and value in norm_content
+            context_match = bool(target_terms) and any(t in context for t in target_terms)
 
-            if key_match or val_match:
+            if key_match or value_match or context_match:
                 try:
                     success = self.long_term.delete_fact_gdpr(
-                        fact_id=fact_id,
+                        fact_id=fact["fact_id"],
                         user_id=user_id,
-                        reason=f"GDPR user request: '{content}'"
+                        reason=f"GDPR user request: '{content}'",
                     )
                     if success:
                         deleted_any = True
                 except Exception as e:
-                    logger.error(f"Error deleting fact {fact_id}: {e}")
+                    logger.error(f"Error deleting fact {fact['fact_id']}: {e}")
 
         return deleted_any
 
