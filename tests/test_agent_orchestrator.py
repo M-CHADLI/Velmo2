@@ -1,8 +1,17 @@
-import time
-from unittest.mock import MagicMock, patch
-from agent.agent import VelmoAgent
-from agent.schema import VelmoResponse
-from guardrails.schema import GuardDecision
+from unittest.mock import MagicMock
+from langchain_core.messages import AIMessage
+from velmo.agent.agent import VelmoAgent
+from velmo.agent.schema import VelmoResponse
+
+
+def _llm_with_final_response(content: str) -> MagicMock:
+    """Build a MagicMock LLM whose bind_tools(...).invoke(...) returns a final
+    AIMessage (no tool_calls), matching the bounded tool-calling loop contract."""
+    llm = MagicMock()
+    bound = MagicMock()
+    bound.invoke.return_value = AIMessage(content=content)
+    llm.bind_tools.return_value = bound
+    return llm
 
 
 def test_process_message_allowed_flow():
@@ -11,8 +20,7 @@ def test_process_message_allowed_flow():
     classifier = MagicMock()
     classifier.classify.return_value = "legitimate"
 
-    llm = MagicMock()
-    llm.invoke.return_value = "Your order 4490 is in transit."
+    llm = _llm_with_final_response("Your order 4490 is in transit.")
 
     # Create agent
     agent = VelmoAgent(classifier=classifier, llm=llm)
@@ -49,9 +57,8 @@ def test_process_message_output_blocked():
     classifier = MagicMock()
     classifier.classify.return_value = "legitimate"
 
-    llm = MagicMock()
     # LLM returns PII (credit card)
-    llm.invoke.return_value = "Your card is 4111 1111 1111 1111, expiry 04/27."
+    llm = _llm_with_final_response("Your card is 4111 1111 1111 1111, expiry 04/27.")
 
     agent = VelmoAgent(classifier=classifier, llm=llm)
     response = agent.process_message("u-test", "What's my payment method?")

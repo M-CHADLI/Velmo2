@@ -1,6 +1,6 @@
 # tests/test_agent_schema.py
-from agent.schema import VelmoResponse
-from guardrails.schema import GuardDecision
+from velmo.agent.schema import VelmoResponse
+from velmo.guardrails.schema import GuardDecision
 
 def test_velmo_response_allowed():
     """Test VelmoResponse for allowed message."""

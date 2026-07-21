@@ -1,317 +1,159 @@
-# 🤖 Velmo 2.0 - Support Agent IA
+# Velmo 2.0 — Agent de support client IA
 
-Velmo 2.0 est un **agent d'assistance client IA** avec **mémoire intelligente**, **garde-fous de sécurité**, et **interface Streamlit** complète.
+Agent d'assistance client avec mémoire persistante, guardrails de sécurité et interface Streamlit.
+Projet d'exercice au niveau d'exigence « produit » : structure `src/` standard, tests, CI.
 
----
+## Démarrage rapide
 
-## 🚀 **Quick Start (30 secondes)**
+### Prérequis
+- Python ≥ 3.11
+- [uv](https://docs.astral.sh/uv/) (gestionnaire de dépendances)
+- Docker Desktop (PostgreSQL + Redis)
+
+### Installation et lancement (5 min)
 
 ```bash
-# 1. Cloner et installer
+# 1. Clone + cd
 git clone https://github.com/M-CHADLI/Velmo2.git
 cd Velmo2
 
-# 2. Setup complet (dependencies + DB + services)
+# 2. Setup complet (install deps + BD + seed data)
 make setup
 
-# 3. Lancer l'app
+# 3. Lancer l'interface Streamlit
 make streamlit
+# → http://localhost:8501
 ```
 
-Ouvre **http://localhost:8501** et commence à chatter! 💬
-
----
-
-## 📋 **Commandes Principales**
+### Setup détaillé (étape par étape)
 
 ```bash
-make help              # Voir toutes les commandes
-make streamlit         # 🎯 Lancer le chat
-make test              # ✅ Lancer les tests
-make format            # 🎨 Formater le code
-make clean             # 🗑️ Nettoyer les caches
-```
-
----
-
-## 🏗️ **Architecture**
-
-Velmo 2.0 = **3 Chantiers**
-
-### **Chantier 1: Mémoire (80%)**
-- Court-terme: fenêtre glissante 30 messages
-- Long-terme: PostgreSQL + pgvector (facts extraction)
-- Judge Agent: extrait facts avec Kimi 2.6
-
-### **Chantier 2: Garde-Fous (95%)**
-- Input guards: bloque haine, violence, injection prompt, secrets
-- Output guards: redaction PII, compliance checks
-- Kimi classifier: analyse sémantique
-
-### **Chantier 3: Observabilité (0%)**
-- LangFuse tracing
-- KPI dashboards
-- CI/CD pipeline
-- *À implémenter*
-
----
-
-## 📁 **Structure du Projet**
-
-```
-Velmo2/
-├── memory/                 🧠 Mémoire agent
-│   ├── short_term.py      Fenêtre glissante
-│   ├── long_term.py       Storage PostgreSQL
-│   ├── judge.py           Judge agent (Kimi)
-│   └── manager.py         Orchestration
-│
-├── guardrails/            🛡️ Sécurité
-│   ├── classifier.py      Kimi classifier
-│   ├── input_guard.py     Validation entrée
-│   ├── output_guard.py    PII redaction
-│   └── manager.py         Pipeline
-│
-├── agent/                 🤖 Agent principal
-│   └── agent.py           Chat orchestration
-│
-├── streamlit/             💬 Interface web
-│   ├── app_streamlit.py   Chat app
-│   ├── components/        Composants UI
-│   └── utils/             Helpers
-│
-├── tests/                 ✅ Tests
-│   └── test_*.py          Unit tests
-│
-├── eval/                  📊 Évaluation
-│   ├── memory_cases.jsonl
-│   ├── guardrail_cases.jsonl
-│   └── quality_cases.jsonl
-│
-├── Makefile               📜 Commandes dev
-├── docker-compose.yml     🐳 Services
-├── pyproject.toml         📦 Dépendances
-└── .env.example           ⚙️ Config
-```
-
----
-
-## 🔧 **Setup Détaillé**
-
-### **Prérequis**
-- Python ≥ 3.11
-- Docker & Docker Compose
-- Git
-
-### **Installation Complète**
-
-```bash
-# 1. Cloner
-git clone https://github.com/M-CHADLI/Velmo2.git
-cd Velmo2
-
-# 2. Installer dépendances
-pip install -e .
-
-# 3. Démarrer Docker (PostgreSQL + Redis)
+# 1. Lancer PostgreSQL + Redis en Docker
 docker-compose up -d
 
-# 4. Initialiser DB
-python -c "from memory import get_db; get_db().init_db()"
+# 2. Installer les dépendances
+UV_LINK_MODE=copy uv sync
 
-# 5. Lancer Streamlit
-streamlit run streamlit/app_streamlit.py
-```
+# 3. Initialiser la base de données
+uv run python -c "from velmo.memory import get_db; db = get_db(); db.init_db()"
 
-**Ou en une commande:**
-```bash
-make setup && make streamlit
-```
+# 4. Seeder avec données fictives (1000 clients e-commerce)
+uv run python scripts/seed_business_db.py
 
----
+# 5. Vérifier les tests (doit afficher ~110 tests passing)
+uv run pytest tests/ -v
 
-## 📊 **Configuration Requise**
-
-Créer `.env` à la racine:
-
-```env
-# PostgreSQL
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/velmo
-
-# Redis (optional, for rate limiting)
-REDIS_URL=redis://localhost:6379/0
-
-# Azure OpenAI (Kimi 2.6)
-AZURE_OPENAI_API_KEY=your-key-here
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_DEPLOYMENT_NAME=Kimi-K2.6
-AZURE_OPENAI_API_VERSION=2024-08-01-preview
-
-# OpenAI (for embeddings)
-OPENAI_API_KEY=your-key-here
-
-# LangFuse (optional, for monitoring)
-LANGFUSE_PUBLIC_KEY=your-key
-LANGFUSE_SECRET_KEY=your-key
-LANGFUSE_HOST=https://cloud.langfuse.com
-```
-
-Voir `.env.example` pour la liste complète.
-
----
-
-## 🎯 **Features**
-
-✅ **Chat en Temps Réel**
-- Histamine de messages
-- Réponses rapides
-- Handling d'erreurs
-
-✅ **Sécurité**
-- Protection input (haine, violence, sexuel, injection prompt)
-- Redaction PII (cartes, IBAN, passwords)
-- Audit trail GDPR
-
-✅ **Mémoire Intelligente**
-- Extraction automatique de facts
-- Retrieval sémantique
-- Persistance long-terme
-
-✅ **Tests & Qualité**
-- 2/2 tests passants
-- 425 LOC nouveau code
-- Architecture propre
-
----
-
-## 📈 **État d'Avancement**
-
-| Chantier | Status | % | Tâches |
-|----------|--------|---|--------|
-| **Chantier 1: Mémoire** | 🟡 Avancé | 80% | 9/9 complètées |
-| **Chantier 2: Garde-fous** | ✅ Quasi-fini | 95% | 8/8 modules |
-| **Chantier 3: Observabilité** | ❌ À faire | 0% | LangFuse, CI/CD |
-
----
-
-## 🧪 **Tests**
-
-```bash
-# Lancer les tests
-make test
-
-# Ou directement
-pytest tests/ -v
-
-# Watch mode
-make test-watch
-```
-
-**Résultats:** 2/2 passing ✅
-
----
-
-## 📚 **Documentation**
-
-- **[streamlit/README.md](streamlit/README.md)** - Interface chat
-- **[DEBRIEF_COMPLET.md](DEBRIEF_COMPLET.md)** - Vue globale détaillée
-- **[docs/superpowers/](docs/superpowers/)** - Plans & specs d'implémentation
-
----
-
-## 🐳 **Docker Compose**
-
-**Services inclus:**
-- **PostgreSQL 16** + pgvector (port 5432)
-- **Redis** Alpine (port 6379)
-
-```bash
-# Démarrer
-docker-compose up -d
-
-# Arrêter
-docker-compose down
-
-# Logs
-docker-compose logs -f
-```
-
----
-
-## 🔍 **Troubleshooting**
-
-### **"Database connection error"**
-```bash
-docker-compose up -d
-python -c "from memory import get_db; get_db().init_db()"
-```
-
-### **"Module not found"**
-```bash
-pip install -e .
-```
-
-### **"Streamlit not found"**
-```bash
-pip install streamlit>=1.28.0
-```
-
-### **Port 8501 already in use**
-```bash
-streamlit run streamlit/app_streamlit.py --server.port 8502
-```
-
----
-
-## 🚀 **Déploiement**
-
-### **Local Development**
-```bash
+# 6. Lancer Streamlit (UI web) — port 8501
 make streamlit
+
+# OU lancer le CLI (chat en terminal)
+uv run python scripts/velmo_cli.py
 ```
 
-### **Docker**
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY pyproject.toml .
-RUN pip install -e .
-COPY . .
-EXPOSE 8501
-CMD ["streamlit", "run", "streamlit/app_streamlit.py"]
+### Configuration
+
+Copier `.env.example` vers `.env` et renseigner les clés :
+- `AZURE_OPENAI_API_KEY` — clé Azure OpenAI
+- `AZURE_OPENAI_ENDPOINT` — endpoint Azure
+- `AZURE_OPENAI_DEPLOYMENT_NAME` — nom du déploiement (ex: `gpt-5.4-mini`)
+- `DATABASE_URL` — URL PostgreSQL (default: `postgresql://postgres:postgres@localhost:5432/velmo`)
+- (optionnel) `LANGSMITH_TRACING=true` + `LANGSMITH_API_KEY` pour observability
+
+## Structure
+
+```
+src/velmo/          Package principal
+├── config.py       Configuration centralisée (env vars)
+├── agent/          Orchestration du chat (tool-calling)
+├── memory/         Mémoire court terme (fenêtre glissante) + long terme (pgvector)
+├── guardrails/     Garde-fous entrée/sortie (classifier LLM, PII, audit)
+├── business/       Base e-commerce fictive + outils LangChain (démo)
+└── observability/  Tracing LangSmith
+
+apps/streamlit/     Interface web de chat
+scripts/            Outils dev : seed DB, reset, éval, CLI
+tests/              Suite pytest (~106 tests)
+eval/               Datasets d'évaluation (.jsonl)
+docs/               Documentation (archive/ = historique de conception)
 ```
 
-### **Streamlit Cloud**
-1. Push vers GitHub
-2. https://streamlit.io/cloud
-3. Connecter le repo
+## Commandes
 
----
+```bash
+make help         # liste complète
+make test         # pytest
+make lint         # ruff
+make format       # black + ruff --fix
+make db-init      # initialise le schéma PostgreSQL
+uv run python scripts/seed_business_db.py   # seed la base fictive (50 clients)
+uv run python scripts/velmo_cli.py          # chat en terminal
+```
 
-## 📞 **Support**
+## Architecture
 
-- 📧 **Issues:** GitHub Issues
-- 💬 **Chat:** Utilise Velmo! 🤖
-- 📖 **Docs:** Voir dossiers `docs/` et `chantier-*/`
+- **Mémoire** : fenêtre glissante 30 messages + extraction de facts (judge LLM toutes
+  les 5 interactions) persistés dans PostgreSQL/pgvector.
+- **Guardrails** : classifier LLM en entrée (fail-safe : bloque si le classifier échoue),
+  redaction PII en sortie, audit trail en base.
+- **Agent** : boucle tool-calling LangChain (3 itérations max, message de repli sinon)
+  sur Azure OpenAI.
+- **Base fictive** : 50 clients e-commerce générés (fixture de démo — remplacerait une
+  vraie base client en production).
 
----
+## Canal SMS (Twilio)
 
-## 📜 **Licence**
+En plus de Streamlit, Velmo2 expose un canal SMS via Twilio.
 
-MIT - Libre d'utilisation
+### Setup
 
----
+1. Créer un compte [Twilio](https://www.twilio.com/), récupérer Account SID, Auth Token, et un numéro Twilio.
+2. Renseigner dans `.env` : `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`.
+3. Lancer le serveur : `make sms-server` (http://localhost:8000).
+4. En dev local, exposer publiquement avec [ngrok](https://ngrok.com/) : `ngrok http 8000`.
+5. Dans la console Twilio, configurer le webhook du numéro SMS sur `https://<ngrok-url>/sms/webhook` (méthode POST).
+6. Le lookup client se fait par numéro de téléphone (colonne `phone` de `customers`, générée en format E.164 par le seed).
 
-## 🎉 **Créé avec**
+En production, remplacer l'URL ngrok par l'URL stable du serveur déployé — aucun changement de code nécessaire.
 
-- 🐍 Python 3.11+
-- 🤖 Kimi 2.6 (Azure OpenAI)
-- 🎨 Streamlit
-- 💾 PostgreSQL + pgvector
-- 🧪 Pytest
-- 🛡️ Pydantic
-- 🔗 LangChain
+## Boucle qualité (Chantier 3 — Évaluation & MLOps)
 
----
+Pour prouver que l'agent ne régresse pas d'une version à l'autre, trois suites
+d'évaluation rejouent des jeux de cas et produisent une **note globale sur 100** :
 
-**Prêt? Fais `make setup` et commence! 🚀**
+| Suite | Jeu de cas | Ce qu'elle mesure |
+|---|---|---|
+| Mémoire | `eval/memory_cases.jsonl` | L'agent se souvient-il (fil long, multi-session, oubli) ? |
+| Garde-fous | `eval/guardrail_cases.jsonl` | % de cas bien traités + taux de blocage et de faux positifs |
+| Qualité | `eval/quality_cases.jsonl` | L'agent répond-il correctement aux questions support courantes ? |
+
+**Lancer l'évaluation complète :**
+
+```bash
+make quality          # = uv run python mlops/run_eval.py
+```
+
+Le script :
+1. lance les 3 suites et calcule la note globale (pondération 40 % mémoire /
+   40 % garde-fous / 20 % qualité, seuil de livraison à 70/100) ;
+2. écrit un rapport lisible dans `mlops/report.md` (note globale, note par suite,
+   taux de blocage, taux de faux positifs, latence moyenne, coût estimé) ;
+3. ajoute une ligne horodatée à `mlops/scores/history.jsonl` (suivi de la note
+   dans le temps) ;
+4. **retourne un code d'erreur si la note passe sous le seuil** → c'est ce qui
+   bloque la livraison.
+
+> Un garde-fou retiré ou la mémoire désactivée font chuter la note sous le seuil :
+> `make quality` échoue alors avec le code de sortie 1, empêchant la livraison.
+
+## CI
+
+- `.github/workflows/ci.yml` — à chaque push : `ruff check` + `pytest` contre un
+  PostgreSQL/pgvector en service container. Rapide, gratuit (LLM mocké).
+- `.github/workflows/quality.yml` — la boucle qualité ci-dessus. Déclenchée
+  **manuellement** (onglet Actions → « Run workflow ») car elle appelle le vrai
+  LLM Azure. Nécessite les secrets `AZURE_OPENAI_*` dans les réglages du repo.
+  Bloque si la note globale est sous le seuil et publie `mlops/report.md` en artifact.
+
+## Licence
+
+MIT

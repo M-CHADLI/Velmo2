@@ -1,8 +1,9 @@
 # tests/test_agent_e2e_guardrails.py
 import json
 import pytest
-from agent.agent import VelmoAgent
+from velmo.agent.agent import VelmoAgent
 from unittest.mock import MagicMock
+from langchain_core.messages import AIMessage
 
 def load_guardrail_cases(path="eval/guardrail_cases.jsonl"):
     """Load guardrail test cases."""
@@ -15,7 +16,7 @@ def load_guardrail_cases(path="eval/guardrail_cases.jsonl"):
 @pytest.mark.parametrize("case", load_guardrail_cases())
 def test_guardrail_case(case):
     """Test each guardrail case matches expected_action."""
-    from guardrails.classifier import KimiClassifier
+    from velmo.guardrails.classifier import KimiClassifier
 
     classifier = MagicMock(spec=KimiClassifier)
 
@@ -56,17 +57,23 @@ def test_guardrail_case(case):
     classifier.classify.side_effect = mock_classify
 
     llm = MagicMock()
-    def mock_llm_invoke(prompt):
-        response = MagicMock()
+    bound = MagicMock()
+    def mock_llm_invoke(messages, config=None):
+        user_text = ""
+        for m in reversed(messages):
+            if getattr(m, "type", None) == "human" or m.__class__.__name__ == "HumanMessage":
+                user_text = m.content
+                break
         # For PII output cases, return content that would trigger output guard
-        if any(x in prompt.lower() for x in ["4111", "iban", "mot de passe du compte"]):
+        if any(x in user_text.lower() for x in ["4111", "iban", "mot de passe du compte"]):
             # Return something with PII to trigger output guard
-            response.content = prompt.split("User: ")[-1] if "User: " in prompt else "Response with PII."
+            content = user_text
         else:
-            response.content = "Response to your question."
-        return response
+            content = "Response to your question."
+        return AIMessage(content=content)
 
-    llm.invoke.side_effect = mock_llm_invoke
+    bound.invoke.side_effect = mock_llm_invoke
+    llm.bind_tools.return_value = bound
 
     agent = VelmoAgent(classifier=classifier, llm=llm)
     response = agent.process_message(case["user_id"], case["message"])
@@ -76,7 +83,7 @@ def test_guardrail_case(case):
 
 def test_guardrail_stats():
     """Summary stats on guardrail cases."""
-    from guardrails.classifier import KimiClassifier
+    from velmo.guardrails.classifier import KimiClassifier
 
     classifier = MagicMock(spec=KimiClassifier)
 
@@ -117,18 +124,24 @@ def test_guardrail_stats():
     classifier.classify.side_effect = mock_classify
 
     llm = MagicMock()
+    bound = MagicMock()
     # For PII output cases, return content that would trigger output guard
-    def mock_llm_invoke(prompt):
-        response = MagicMock()
-        # Return the user input if it contains PII to simulate output guard checking it
-        if any(x in prompt.lower() for x in ["4111", "iban", "mot de passe du compte"]):
+    def mock_llm_invoke(messages, config=None):
+        # Extract the last human message content from the messages list
+        user_text = ""
+        for m in reversed(messages):
+            if getattr(m, "type", None) == "human" or m.__class__.__name__ == "HumanMessage":
+                user_text = m.content
+                break
+        if any(x in user_text.lower() for x in ["4111", "iban", "mot de passe du compte"]):
             # Return something with PII to trigger output guard
-            response.content = prompt.split("User: ")[-1] if "User: " in prompt else "Response with PII."
+            content = user_text
         else:
-            response.content = "Response."
-        return response
+            content = "Response."
+        return AIMessage(content=content)
 
-    llm.invoke.side_effect = mock_llm_invoke
+    bound.invoke.side_effect = mock_llm_invoke
+    llm.bind_tools.return_value = bound
 
     agent = VelmoAgent(classifier=classifier, llm=llm)
     cases = load_guardrail_cases()
@@ -143,7 +156,7 @@ def test_guardrail_stats():
         else:
             failed_cases.append(case["id"])
 
-    print(f"\nGuardrail E2E Stats:")
+    print("\nGuardrail E2E Stats:")
     print(f"  Passed: {passed}/{len(cases)}")
     if failed_cases:
         print(f"  Failed cases: {', '.join(failed_cases)}")

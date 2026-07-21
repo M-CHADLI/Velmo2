@@ -1,0 +1,62 @@
+name: Quality (mémoire + garde-fous + qualité)
+
+# Contrairement à ci.yml (lint + tests unitaires, mockés, gratuits, à chaque
+# push), ce workflow appelle le vrai LLM Azure OpenAI : il coûte de l'argent
+# et nécessite de vraies clés API. On le déclenche donc à la main plutôt que
+# sur chaque push, pour garder la main sur le coût.
+#
+# Pour l'activer : ajouter les secrets AZURE_OPENAI_API_KEY,
+# AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT_NAME, AZURE_OPENAI_API_VERSION
+# dans Settings > Secrets and variables > Actions du repo GitHub, puis lancer
+# ce workflow depuis l'onglet Actions ("Run workflow").
+
+on:
+  workflow_dispatch:
+
+jobs:
+  quality-eval:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: velmo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/velmo
+      REDIS_URL: redis://localhost:6379/0
+      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+      AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+      AZURE_OPENAI_DEPLOYMENT_NAME: ${{ secrets.AZURE_OPENAI_DEPLOYMENT_NAME }}
+      AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
+      LANGSMITH_TRACING: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync
+      - name: Initialize database schema (Postgres de CI vierge)
+        run: uv run python -c "from velmo.memory import get_db; get_db().init_db()"
+      - name: Seed business database
+        run: uv run python scripts/seed_business_db.py --customers 20
+      - name: Run evaluation suites (mémoire + garde-fous + qualité)
+        run: uv run python mlops/run_eval.py
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-report
+          path: |
+            mlops/report.md
+            mlops/scores/history.jsonl

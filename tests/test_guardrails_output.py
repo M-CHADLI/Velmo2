@@ -1,4 +1,4 @@
-from guardrails.output_guard import check_output
+from velmo.guardrails.output_guard import check_output
 
 
 def test_output_blocks_credit_card():

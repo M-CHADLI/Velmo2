@@ -1,8 +1,8 @@
 """Test Streamlit chat interface."""
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from streamlit.components.chat_handler import ChatHandler
+from unittest.mock import Mock
+from components.chat_handler import ChatHandler
 
 @pytest.mark.asyncio
 async def test_chat_handler_allowed_message():

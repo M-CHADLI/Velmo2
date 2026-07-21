@@ -1,26 +1,15 @@
-# Secrets — NE JAMAIS COMMITTER
+# Secrets
 .env
 *.env
 !.env.example
 
-# Skills installés localement (agents)
-.agents/
-.claude/
-skills-lock.json
-
-# Python
+# Python artifacts
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
 .venv/
-venv/
 
-# Node
-node_modules/
-
-# Streamlit
-streamlit/.streamlit/secrets.toml
-.streamlit/
-
-# OS
-Thumbs.db
-.DS_Store
+# Superpowers scratch
+.superpowers/
