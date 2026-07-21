@@ -31,12 +31,12 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # DATABASE_URL / REDIS_URL / LANGSMITH_TRACING sont définis ici pour la CI
+      # et priment sur le .env (load_dotenv n'écrase pas les variables déjà
+      # présentes). Les clés Azure viennent, elles, du .env écrit ci-dessous à
+      # partir du secret VELMO2.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/velmo
       REDIS_URL: redis://localhost:6379/0
-      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-      AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
-      AZURE_OPENAI_DEPLOYMENT_NAME: ${{ secrets.AZURE_OPENAI_DEPLOYMENT_NAME }}
-      AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
       LANGSMITH_TRACING: "false"
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +46,10 @@ jobs:
           enable-cache: true
       - name: Install dependencies
         run: uv sync
+      - name: Write .env from the VELMO2 secret (contient les clés Azure)
+        env:
+          VELMO2_ENV: ${{ secrets.VELMO2 }}
+        run: printf '%s\n' "$VELMO2_ENV" > .env
       - name: Initialize database schema (Postgres de CI vierge)
         run: uv run python -c "from velmo.memory import get_db; get_db().init_db()"
       - name: Seed business database
