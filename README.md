@@ -19,6 +19,8 @@ Projet d'exercice au niveau d'exigence « produit » : structure `src/` standard
 
 ## 🚀 Démarrage rapide (5 min)
 
+> 📖 **Guide détaillé pas à pas** (prérequis, config, seed, dépannage) : **[docs/demarrage.md](docs/demarrage.md)**
+
 **Prérequis :** Python ≥ 3.11 · [uv](https://docs.astral.sh/uv/) · Docker Desktop (PostgreSQL + Redis)
 
 ```bash

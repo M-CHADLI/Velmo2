@@ -3,13 +3,14 @@
 Bienvenue dans la documentation centrale de **Velmo 2.0**, l'agent de support client
 IA (mémoire persistante + garde-fous de sécurité + boucle qualité mesurée).
 
-> 🧭 **Par où commencer ?** Voir [l'architecture globale](architecture.md), puis
-> le chantier concerné via le tableau ci-dessous.
+> 🧭 **Par où commencer ?** Suivez le [guide de démarrage](demarrage.md) pour installer
+> et lancer le projet, puis lisez [l'architecture globale](architecture.md).
 
 ## 🗺️ Sommaire
 
 | Section | À quoi ça sert | Aller voir |
 |---------|----------------|-----------|
+| **🚀 Démarrage** | Installer et lancer le projet, pas à pas | [demarrage.md](demarrage.md) |
 | **Architecture** | Vue d'ensemble du système + schéma du flux d'une conversation | [architecture.md](architecture.md) |
 | **Chantier 1 — Mémoire** | Comment l'agent se souvient (court terme, long terme, oubli RGPD) | [chantiers/1-memoire/](chantiers/1-memoire/README.md) |
 | **Chantier 2 — Garde-fous** | Comment l'agent bloque les contenus interdits (entrée + sortie) | [chantiers/2-guardrails/](chantiers/2-guardrails/README.md) |
