@@ -316,6 +316,7 @@ class LongTermMemory:
                         "key": row["data"].get("key"),
                         "value": row["data"].get("value"),
                         "type": row["data"].get("type"),
+                        "context": row["data"].get("context"),
                         "confidence": row["data"].get("confidence"),
                         "version": row["version"],
                         "created_at": row["created_at"].isoformat() if row["created_at"] else None,

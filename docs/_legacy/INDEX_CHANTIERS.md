@@ -1,3 +1,8 @@
+> ## ⚠️ OBSOLÈTE — index historique
+> Cet index décrit des cibles et un design partiellement non implémentés
+> (LangFuse, Presidio, KPIs jamais mesurés).
+> 👉 Index à jour : [docs/README.md](../README.md)
+
 # Velmo 2.0 - Index des Chantiers
 
 ## 📊 Vue d'ensemble

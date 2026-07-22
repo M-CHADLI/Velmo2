@@ -1,3 +1,9 @@
+> ## ⚠️ OBSOLÈTE — design jamais implémenté
+> Ce document décrit une approche **LangFuse-first** (dashboards LangFuse, gate
+> sur scores LangFuse) qui **n'a pas été construite**. Le Chantier 3 réel utilise
+> **LangSmith** + `mlops/run_eval.py` + `quality.yml`.
+> 👉 Doc à jour : [docs/chantiers/3-qualite/](../../chantiers/3-qualite/README.md)
+
 # Chantier 3 : Évaluation & Observabilité (LangFuse-first)
 
 **Objectif :** mesurer la qualité de Velmo et surveiller sa santé, en s'appuyant **au maximum sur LangFuse** comme plateforme unique.

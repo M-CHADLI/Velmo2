@@ -37,6 +37,8 @@ jobs:
           enable-cache: true
       - name: Install dependencies
         run: uv sync
+      - name: Initialize database schema (Postgres de CI vierge)
+        run: uv run python -c "from velmo.memory import get_db; get_db().init_db()"
       - name: Lint
         run: uv run ruff check .
       - name: Tests

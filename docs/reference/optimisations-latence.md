@@ -1,3 +1,5 @@
+[📖 Documentation](../README.md) › Référence › Optimisations de latence
+
 # Optimisations de latence — Velmo 2.0
 
 > **Document vivant — à conserver et mettre à jour pendant toute la durée du projet.**
@@ -143,3 +145,7 @@ CLASSIFIER_DEPLOYMENT_NAME=   # vide = même modèle que la réponse
 CLASSIFIER_MAX_TOKENS=10      # augmenter si une catégorie est tronquée
 RESPONSE_MAX_TOKENS=512       # augmenter si les réponses sont coupées
 ```
+
+---
+
+⬆ [Retour à l'index](../README.md)
