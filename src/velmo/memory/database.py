@@ -34,6 +34,10 @@ class Database:
         from velmo.guardrails.audit import init_guardrail_table
         conn = self.connect()
         try:
+            # La connexion est un singleton partagé : une requête échouée
+            # (ex. table absente) peut la laisser en transaction avortée
+            # ("InFailedSqlTransaction"). On repart d'un état propre avant le DDL.
+            conn.rollback()
             with conn.cursor() as cur:
                 # 1. Create pgvector extension
                 cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
